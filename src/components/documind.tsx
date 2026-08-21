@@ -72,15 +72,31 @@ export function Logo({ inverse = false }: { inverse?: boolean }) {
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const [location, setLocation] = useLocation();
+
+  const handleNavClick = (e: React.MouseEvent, anchorId: string) => {
+    e.preventDefault();
+    setOpen(false);
+    if (location === '/' || location === '') {
+      const el = document.getElementById(anchorId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+        window.history.pushState(null, '', `/#${anchorId}`);
+        return;
+      }
+    }
+    setLocation(`/#${anchorId}`);
+  };
+
   return (
-    <header className="absolute inset-x-0 top-0 z-40 border-b border-ink/10 bg-paper/80 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 border-b border-ink/10 bg-paper/85 backdrop-blur-md">
       <div className="mx-auto flex h-[72px] max-w-[1320px] items-center justify-between px-5 md:px-10">
         <Logo />
         <nav className="hidden items-center gap-8 text-[12px] text-ink/70 md:flex" aria-label="Primary navigation">
-          <Link href="/#how-it-works" data-testid="link-how-it-works" className="transition-colors hover:text-terracotta">How it works</Link>
-          <Link href="/#features" data-testid="link-features" className="transition-colors hover:text-terracotta">Features</Link>
-          <Link href="/#pricing" data-testid="link-pricing" className="transition-colors hover:text-terracotta">Pricing</Link>
-          <Link href="/#about" data-testid="link-about" className="transition-colors hover:text-terracotta">About us</Link>
+          <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} data-testid="link-how-it-works" className="cursor-pointer transition-colors hover:text-terracotta">How it works</a>
+          <a href="/#features" onClick={(e) => handleNavClick(e, 'features')} data-testid="link-features" className="cursor-pointer transition-colors hover:text-terracotta">Features</a>
+          <a href="/#pricing" onClick={(e) => handleNavClick(e, 'pricing')} data-testid="link-pricing" className="cursor-pointer transition-colors hover:text-terracotta">Pricing</a>
+          <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} data-testid="link-about" className="cursor-pointer transition-colors hover:text-terracotta">About us</a>
         </nav>
         <div className="hidden items-center gap-5 md:flex">
           <Link href="/login" className="text-[12px] font-semibold text-ink/70 hover:text-ink" data-testid="link-log-in">Log in</Link>
@@ -91,15 +107,18 @@ export function Navbar() {
         </button>
       </div>
       {open && (
-        <div className="paper-texture border-t border-ink/10 bg-paper px-5 py-5 md:hidden">
+        <div className="paper-texture border-t border-ink/10 bg-paper px-5 py-5 shadow-lg md:hidden">
           <nav className="grid gap-4 text-sm" aria-label="Mobile navigation">
-            <Link href="/" onClick={() => setOpen(false)} className="text-ink/75" data-testid="mobile-link-home">Home</Link>
-            <Link href="/#how-it-works" onClick={() => setOpen(false)} className="text-ink/75" data-testid="mobile-link-how-it-works">How It Works</Link>
-            <Link href="/documents" onClick={() => setOpen(false)} className="text-ink/75" data-testid="mobile-link-documents">Documents</Link>
-            <Link href="/settings" onClick={() => setOpen(false)} className="text-ink/75" data-testid="mobile-link-settings">Settings</Link>
+            <Link href="/" onClick={() => setOpen(false)} className="text-ink/75 hover:text-terracotta" data-testid="mobile-link-home">Home</Link>
+            <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-how-it-works">How It Works</a>
+            <a href="/#features" onClick={(e) => handleNavClick(e, 'features')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-features">Features</a>
+            <a href="/#pricing" onClick={(e) => handleNavClick(e, 'pricing')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-pricing">Pricing</a>
+            <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-about">About Us</a>
+            <Link href="/documents" onClick={() => setOpen(false)} className="text-ink/75 hover:text-terracotta" data-testid="mobile-link-documents">Documents</Link>
+            <Link href="/settings" onClick={() => setOpen(false)} className="text-ink/75 hover:text-terracotta" data-testid="mobile-link-settings">Settings</Link>
             <div className="mt-2 flex gap-3 border-t border-ink/10 pt-4">
-              <Link href="/login" className={`${buttonBase} flex-1 border border-ink/15 py-2.5`} data-testid="mobile-link-login">Log in</Link>
-              <Link href="/documents/new" className={`${buttonBase} flex-1 bg-forest py-2.5 text-paper`} data-testid="mobile-link-start">Get started</Link>
+              <Link href="/login" onClick={() => setOpen(false)} className={`${buttonBase} flex-1 border border-ink/15 py-2.5 text-xs`} data-testid="mobile-link-login">Log in</Link>
+              <Link href="/documents/new" onClick={() => setOpen(false)} className={`${buttonBase} flex-1 bg-forest py-2.5 text-xs text-paper`} data-testid="mobile-link-start">Get started</Link>
             </div>
           </nav>
         </div>
@@ -108,7 +127,13 @@ export function Navbar() {
   );
 }
 
-function ArrowLink({ children, href = '#', light = false }: { children: ReactNode; href?: string; light?: boolean }) {
+function ArrowLink({ children, href = '#', light = false, onClick }: { children: ReactNode; href?: string; light?: boolean; onClick?: (e: React.MouseEvent) => void }) {
+  if (onClick) {
+    return <a href={href} onClick={onClick} className={`group inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[.12em] cursor-pointer ${light ? 'text-paper/80 hover:text-paper' : 'text-terracotta hover:text-forest'}`} data-testid={`link-arrow-${String(children).toLowerCase().replaceAll(' ', '-')}`}>
+      {children}<ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
+    </a>;
+  }
+
   return <Link href={href} className={`group inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[.12em] ${light ? 'text-paper/80 hover:text-paper' : 'text-terracotta hover:text-forest'}`} data-testid={`link-arrow-${String(children).toLowerCase().replaceAll(' ', '-')}`}>
     {children}<ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
   </Link>;
@@ -145,11 +170,43 @@ function Annotation({ children, tone, className = '' }: { children: ReactNode; t
 }
 
 export function LandingPage() {
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    const handleHashScroll = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash) {
+        const el = document.getElementById(hash);
+        if (el) {
+          setTimeout(() => {
+            el.scrollIntoView({ behavior: 'smooth' });
+          }, 60);
+        }
+      }
+    };
+
+    handleHashScroll();
+    window.addEventListener('hashchange', handleHashScroll);
+    return () => window.removeEventListener('hashchange', handleHashScroll);
+  }, [location]);
+
+  const scrollToAnchor = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+      window.history.pushState(null, '', `/#${id}`);
+    } else {
+      setLocation(`/#${id}`);
+    }
+  };
+
   return (
     <div className="min-h-[100dvh] overflow-hidden bg-paper">
       <Navbar />
       <main>
-        <section className="relative mx-auto grid min-h-[760px] max-w-[1320px] items-center gap-10 px-5 pb-20 pt-36 md:grid-cols-[1.04fr_.96fr] md:px-10 md:pt-40">
+        {/* HERO SECTION */}
+        <section className="relative mx-auto grid min-h-[760px] max-w-[1320px] items-center gap-10 px-5 pb-20 pt-16 md:grid-cols-[1.04fr_.96fr] md:px-10 md:pt-20">
           <div className="absolute -left-20 top-[110px] hidden h-[330px] w-[250px] rotate-[12deg] bg-[#e4d5b4]/50 md:block" />
           <div className="reveal relative z-10 max-w-[620px]">
             <p className="mb-7 font-mono-ui text-[10px] font-medium uppercase tracking-[.2em] text-terracotta">Turn documents into understanding.</p>
@@ -157,7 +214,7 @@ export function LandingPage() {
             <p className="mt-8 max-w-[430px] text-[15px] leading-7 text-ink/65">UNFOLD turns long documents into clear summaries, key ideas and useful insights.</p>
             <div className="mt-9 flex flex-wrap items-center gap-4">
               <Link href="/documents/new" className={`${buttonBase} bg-forest px-5 py-3.5 text-paper hover:bg-forest/90`} data-testid="button-understand-document">Understand a document <ArrowUpRight size={15} /></Link>
-              <ArrowLink href="/how-it-works">See how it works</ArrowLink>
+              <ArrowLink href="/#how-it-works" onClick={(e) => scrollToAnchor(e, 'how-it-works')}>See how it works</ArrowLink>
             </div>
             <div className="mt-16 flex items-center gap-3">
               <div className="flex -space-x-2">
@@ -179,72 +236,277 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="how-it-works" className="border-y border-ink/15 bg-[#e7ddc8]">
-          <div className="mx-auto max-w-[1100px] px-5 py-20 md:px-10 md:py-28">
-            <div className="mb-14 flex items-end justify-between gap-5">
-              <div><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">A quieter way to read</p><h2 className="mt-4 font-display text-[clamp(2.5rem,5vw,4.7rem)] leading-[.95] tracking-[-.05em]">From pages<br /><em>to perspective.</em></h2></div>
-              <p className="hidden max-w-[210px] text-right text-sm leading-6 text-ink/55 md:block">A little orientation can change the way a whole document feels.</p>
+        {/* 1. HOW IT WORKS SECTION */}
+        <section id="how-it-works" className="scroll-mt-20 border-y border-ink/15 bg-[#e7ddc8] md:scroll-mt-24">
+          <div className="mx-auto max-w-[1240px] px-5 py-20 md:px-10 md:py-28">
+            <div className="mb-14 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+              <div>
+                <p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">A quieter way to read</p>
+                <h2 className="mt-4 font-display text-[clamp(2.5rem,5vw,4.7rem)] leading-[.95] tracking-[-.05em]">From pages<br /><em>to perspective.</em></h2>
+              </div>
+              <div className="max-w-[320px] md:text-right">
+                <p className="text-sm leading-6 text-ink/65">A little orientation changes how a whole document feels. Four deliberate steps from raw text to complete clarity.</p>
+                <div className="mt-3">
+                  <Link href="/how-it-works" className="inline-flex items-center gap-1.5 text-xs font-semibold text-terracotta hover:text-forest" data-testid="link-explore-how-it-works">
+                    Explore full method <ArrowRight size={13} />
+                  </Link>
+                </div>
+              </div>
             </div>
             <div className="grid items-start gap-8 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                ['01', '14', 'pages', 'Upload the document you have been putting off.'],
-                ['02', '3,842', 'words', 'UNFOLD reads for structure, not just keywords.'],
-                ['03', '7', 'key ideas', 'The argument comes into focus, one thread at a time.'],
-                ['04', '1', 'clear understanding', 'Leave knowing what matters and what to do next.'],
-              ].map(([number, metric, label, body], index) => <div key={number} className={`reveal reveal-${index + 1} border-t border-ink/25 pt-4`}><div className="flex justify-between font-mono-ui text-[9px] text-terracotta"><span>{number}</span><ArrowRight size={13} /></div><p className="mt-9 font-display text-4xl">{metric}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">{label}</p><p className="mt-5 max-w-[190px] text-xs leading-5 text-ink/60">{body}</p></div>)}
+                ['01', 'Upload & Parse', 'PDF, DOCX, or TXT', 'Drop in files up to 25MB. We extract typography, hierarchy, and structural context without losing meaning.'],
+                ['02', 'Deep Structural Read', 'Beyond keywords', 'UNFOLD reads for thesis, methodology, evidence, and the logical architecture of the underlying argument.'],
+                ['03', 'Multi-Level Synthesis', 'Adjustable lengths', 'Get structured summaries with length controls, key bullet takeaways, and categorized main idea threads.'],
+                ['04', 'Actionable Insights', 'Ready to apply', 'Surface follow-up questions, recommendations, and clear perspectives to take your next read further.'],
+              ].map(([number, title, subtitle, body], index) => (
+                <div key={number} className={`reveal reveal-${index + 1} border-t border-ink/25 pt-5`}>
+                  <div className="flex justify-between font-mono-ui text-[10px] text-terracotta">
+                    <span>{number}</span>
+                    <ArrowRight size={13} />
+                  </div>
+                  <h3 className="mt-6 font-display text-2xl text-ink">{title}</h3>
+                  <p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">{subtitle}</p>
+                  <p className="mt-4 text-xs leading-6 text-ink/65">{body}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        <section id="features" className="mx-auto grid max-w-[1320px] gap-16 px-5 py-24 md:grid-cols-[.75fr_1.25fr] md:px-10 md:py-32">
-          <div className="self-center">
-            <p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">See the difference</p>
-            <h2 className="mt-5 max-w-[450px] font-display text-[clamp(2.8rem,5vw,5rem)] leading-[.94] tracking-[-.05em]">See what understanding <em>looks like.</em></h2>
-            <p className="mt-7 max-w-[360px] text-sm leading-6 text-ink/60">Our AI reads between the lines so you can focus on what matters most. Every result keeps the shape of the original thinking in view.</p>
-            <div className="mt-8"><ArrowLink href="/documents">View live demo</ArrowLink></div>
-          </div>
-          <div className="relative min-h-[510px] border border-ink/15 bg-[#e8ddc6] p-5 md:p-9">
-            <div className="absolute -right-5 -top-6 h-24 w-44 rotate-[-8deg] bg-[#d2bf94]/70" />
-            <div className="relative grid gap-4 md:grid-cols-[.78fr_1.22fr]">
-              <div className="paper-texture paper-shadow rotate-[-2deg] bg-[#fbf6eb] p-5">
-                <div className="mb-5 flex justify-between border-b border-ink/20 pb-3"><span className="font-display text-sm">Research Paper.pdf</span><span className="font-mono-ui text-[8px]">1 / 14</span></div>
-                <p className="font-display text-[10px] italic">Abstract</p>
-                <div className="doc-lines mt-3 h-[315px] text-[8px] leading-[18px] text-ink/55">This paper explores the impact of machine learning techniques on productivity across knowledge work domains. The findings suggest a significant improvement in task automation and decision support, with implications for future workflows.</div>
+        {/* 2. FEATURES SECTION */}
+        <section id="features" className="scroll-mt-20 mx-auto max-w-[1320px] px-5 py-24 md:scroll-mt-24 md:px-10 md:py-32">
+          <div className="grid gap-16 md:grid-cols-[.85fr_1.15fr]">
+            <div className="self-center">
+              <p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Capabilities & Tools</p>
+              <h2 className="mt-4 font-display text-[clamp(2.8rem,5vw,4.8rem)] leading-[.94] tracking-[-.05em]">Everything you need to <em>master long documents.</em></h2>
+              <p className="mt-6 text-sm leading-7 text-ink/65">UNFOLD provides a tactile, calm reading environment equipped with tools to synthesize, organize, and retain knowledge without cognitive fatigue.</p>
+              
+              <div className="mt-8 space-y-4">
+                {[
+                  { title: 'AI Document Summarization', desc: 'Instant multi-level synthesis with adjustable Short, Medium, and Long controls.' },
+                  { title: 'Key Point Extraction', desc: 'Detect pivotal claims, core findings, and empirical evidence in seconds.' },
+                  { title: 'Main Idea Identification', desc: 'Conceptual threads categorized with dedicated titles and explanatory notes.' },
+                  { title: 'Actionable Suggestions', desc: 'Thoughtful prompts and research questions to deepen your next inquiry.' },
+                  { title: 'Organized Document Library', desc: 'User-scoped, filterable, and searchable personal knowledge archive.' },
+                  { title: 'Interactive Document Preview', desc: 'Collapsible paper-like reading sheet with citation-level structural alignment.' },
+                ].map((feat) => (
+                  <div key={feat.title} className="border-b border-ink/10 pb-3">
+                    <p className="font-display text-[15px] text-ink">{feat.title}</p>
+                    <p className="mt-1 text-xs text-ink/55 leading-5">{feat.desc}</p>
+                  </div>
+                ))}
               </div>
-              <div className="paper-texture bg-[#fbf6eb] p-5 shadow-sm">
-                <div className="flex gap-5 border-b border-ink/15 pb-3 font-mono-ui text-[9px]"><span className="border-b-2 border-terracotta pb-3 text-terracotta">Summary</span><span>Key Points</span><span className="hidden sm:inline">Main Ideas</span></div>
-                <p className="mt-7 font-display text-xl">Summary</p>
-                <p className="mt-3 text-[11px] leading-5 text-ink/65">This paper explores the impact of machine learning techniques on productivity across knowledge work domains.</p>
-                <p className="mt-6 font-display text-sm">Summary length</p>
-                <div className="mt-3 flex gap-1">{['Short', 'Medium', 'Long'].map((x, i) => <span key={x} className={`flex-1 border border-ink/15 px-2 py-2 text-center text-[9px] ${i === 1 ? 'bg-forest text-paper' : 'bg-paper'}`}>{x}</span>)}</div>
-                <div className="mt-8 space-y-3">{['Productivity gains are contextual.', 'The handoff between people and models matters.', 'Trust comes from visible reasoning.'].map((x) => <div key={x} className="flex gap-2 border-t border-ink/10 pt-3 text-[10px] text-ink/60"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-terracotta" />{x}</div>)}</div>
+
+              <div className="mt-8 flex items-center gap-4">
+                <Link href="/documents/new" className={`${buttonBase} bg-forest px-4 py-2.5 text-xs text-paper hover:bg-forest/90`} data-testid="button-features-try">
+                  Try with your document <ArrowRight size={14} />
+                </Link>
+                <ArrowLink href="/documents">View sample library</ArrowLink>
+              </div>
+            </div>
+
+            <div className="relative min-h-[510px] border border-ink/15 bg-[#e8ddc6] p-5 md:p-9 self-center">
+              <div className="absolute -right-5 -top-6 h-24 w-44 rotate-[-8deg] bg-[#d2bf94]/70" />
+              <div className="relative grid gap-4 md:grid-cols-[.82fr_1.18fr]">
+                <div className="paper-texture paper-shadow rotate-[-2deg] bg-[#fbf6eb] p-5">
+                  <div className="mb-5 flex justify-between border-b border-ink/20 pb-3">
+                    <span className="font-display text-sm">Research Paper.pdf</span>
+                    <span className="font-mono-ui text-[8px] text-ink/50">1 / 14</span>
+                  </div>
+                  <p className="font-display text-[10px] italic text-ink/70">Abstract</p>
+                  <div className="doc-lines mt-3 h-[290px] text-[8px] leading-[18px] text-ink/55">
+                    This paper explores the impact of machine learning techniques on productivity across knowledge work domains. The findings suggest a significant improvement in task automation and decision support, with implications for future workflows.
+                  </div>
+                </div>
+                <div className="paper-texture bg-[#fbf6eb] p-5 shadow-sm">
+                  <div className="flex gap-4 border-b border-ink/15 pb-3 font-mono-ui text-[9px]">
+                    <span className="border-b-2 border-terracotta pb-3 text-terracotta font-semibold">Summary</span>
+                    <span className="text-ink/50">Key Points</span>
+                    <span className="hidden sm:inline text-ink/50">Main Ideas</span>
+                  </div>
+                  <p className="mt-5 font-display text-lg">Structured Synthesis</p>
+                  <p className="mt-2 text-[11px] leading-5 text-ink/65">
+                    Artificial intelligence elevates productivity when transparency in reasoning is preserved.
+                  </p>
+                  <p className="mt-5 font-display text-xs">Summary length</p>
+                  <div className="mt-2 flex gap-1">
+                    {['Short', 'Medium', 'Long'].map((x, i) => (
+                      <span key={x} className={`flex-1 border border-ink/15 px-2 py-1.5 text-center text-[9px] ${i === 1 ? 'bg-forest text-paper font-semibold' : 'bg-paper text-ink/60'}`}>{x}</span>
+                    ))}
+                  </div>
+                  <div className="mt-6 space-y-2.5">
+                    {['Productivity gains are deeply contextual.', 'The handoff between human judgment and models matters.', 'Trust emerges from legible evidence.'].map((x) => (
+                      <div key={x} className="flex gap-2 border-t border-ink/10 pt-2.5 text-[10px] text-ink/65">
+                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-terracotta" />
+                        <span>{x}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="about" className="bg-forest text-paper">
-          <div className="mx-auto grid max-w-[1320px] gap-14 px-5 py-24 md:grid-cols-[1fr_.8fr] md:px-10 md:py-32">
-            <div><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#d7b25c]">Built for the in-between</p><h2 className="mt-5 max-w-[700px] font-display text-[clamp(3rem,6vw,6.8rem)] leading-[.87] tracking-[-.06em]">The space between reading <em className="text-[#d7b25c]">and knowing.</em></h2></div>
-            <div className="self-end"><p className="max-w-[360px] text-sm leading-7 text-paper/65">For the research you need to understand, the reports you need to explain, and the ideas worth returning to. UNFOLD makes room for thought.</p><div className="mt-8"><Link href="/register" className={`${buttonBase} bg-[#d7b25c] px-5 py-3.5 text-forest hover:bg-[#e2c577]`} data-testid="button-create-account">Create your account <ArrowUpRight size={15} /></Link></div></div>
+        {/* 3. ABOUT US SECTION */}
+        <section id="about" className="scroll-mt-20 bg-forest text-paper md:scroll-mt-24">
+          <div className="mx-auto grid max-w-[1320px] gap-14 px-5 py-24 md:grid-cols-[1.1fr_.9fr] md:px-10 md:py-32">
+            <div>
+              <p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-[#d7b25c]">Our Purpose</p>
+              <h2 className="mt-5 max-w-[700px] font-display text-[clamp(2.8rem,5.5vw,6rem)] leading-[.89] tracking-[-.06em]">
+                The space between reading <em className="text-[#d7b25c]">and knowing.</em>
+              </h2>
+              <p className="mt-7 max-w-[560px] text-sm leading-7 text-paper/75">
+                UNFOLD is designed to help people understand long documents without spending unnecessary time manually extracting structure, claims, key ideas, and insights.
+              </p>
+            </div>
+            <div className="flex flex-col justify-between">
+              <div className="space-y-5 text-xs leading-6 text-paper/70">
+                <p>
+                  Modern knowledge work is overwhelmed by volume. We believe the future of reading isn't skimming faster, but understanding deeper with significantly less cognitive fatigue.
+                </p>
+                <p>
+                  By transforming complex PDFs, academic papers, and technical reports into structured, digestible perspectives, UNFOLD frees your attention for what matters: thinking, synthesizing, and creating.
+                </p>
+              </div>
+              <div className="mt-10">
+                <Link href="/register" className={`${buttonBase} bg-[#d7b25c] px-6 py-3.5 text-forest hover:bg-[#e2c577]`} data-testid="button-create-account">
+                  Create your account <ArrowUpRight size={15} />
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section id="pricing" className="mx-auto max-w-[1320px] px-5 py-20 md:px-10 md:py-28">
-          <div className="border-y border-ink/15 py-8 md:flex md:items-center md:justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Start with one document</p><p className="mt-3 font-display text-3xl">Clarity is a good place to begin.</p></div><Link href="/documents/new" className={`${buttonBase} mt-6 bg-terracotta px-5 py-3.5 text-paper hover:bg-terracotta/90 md:mt-0`} data-testid="button-start-reading">Start reading <ArrowRight size={15} /></Link></div>
+        {/* 4. PRICING SECTION */}
+        <section id="pricing" className="scroll-mt-20 mx-auto max-w-[1320px] px-5 py-24 md:scroll-mt-24 md:px-10 md:py-32">
+          <div className="mb-14 text-center">
+            <p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Simple, Transparent Pricing</p>
+            <h2 className="mt-3 font-display text-[clamp(2.5rem,4.5vw,4.5rem)] leading-[.94] tracking-[-.05em]">
+              Invest in clarity.
+            </h2>
+            <p className="mt-4 mx-auto max-w-[480px] text-sm leading-6 text-ink/60">
+              Start reading for free. Upgrade when your research volume and library needs expand.
+            </p>
+          </div>
+
+          <div className="mx-auto grid max-w-[960px] gap-8 md:grid-cols-2">
+            {/* Free Tier */}
+            <div className="paper-texture border border-ink/15 bg-card p-8 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-2xl text-ink">Free</h3>
+                  <span className="font-mono-ui text-[9px] uppercase tracking-[.12em] text-forest border border-forest/20 px-2 py-0.5 rounded-full">Preview</span>
+                </div>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="font-display text-4xl text-ink">$0</span>
+                  <span className="font-mono-ui text-[10px] text-ink/45 uppercase tracking-[.1em]">/ month</span>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-ink/60">
+                  Ideal for students, occasional readers, and exploratory research.
+                </p>
+                <div className="mt-7 space-y-3 border-t border-ink/10 pt-6 text-xs text-ink/75">
+                  {[
+                    'Up to 10 document uploads',
+                    'PDF, DOCX, and TXT files (up to 25 MB)',
+                    'Multi-level summaries with length controls',
+                    'Key points and main ideas extraction',
+                    'Personal reading room & document library',
+                  ].map((feat) => (
+                    <div key={feat} className="flex items-center gap-2.5">
+                      <Check size={14} className="shrink-0 text-forest" />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-8 pt-4">
+                <Link href="/documents/new" className={`${buttonBase} w-full border border-ink/20 bg-paper py-3 text-xs text-ink hover:border-ink/40`} data-testid="button-pricing-free">
+                  Get started free
+                </Link>
+              </div>
+            </div>
+
+            {/* Pro Tier */}
+            <div className="paper-texture border-2 border-forest bg-card p-8 shadow-md relative flex flex-col justify-between">
+              <span className="absolute -top-3 right-6 bg-forest text-paper font-mono-ui text-[9px] uppercase tracking-[.14em] px-3 py-0.5 rounded-full">
+                Recommended
+              </span>
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-2xl text-ink">Pro Reader</h3>
+                  <span className="font-mono-ui text-[9px] uppercase tracking-[.12em] text-terracotta border border-terracotta/20 px-2 py-0.5 rounded-full">Unlimited</span>
+                </div>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="font-display text-4xl text-ink">$12</span>
+                  <span className="font-mono-ui text-[10px] text-ink/45 uppercase tracking-[.1em]">/ month</span>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-ink/60">
+                  For researchers, analysts, and professionals with heavy reading loads.
+                </p>
+                <div className="mt-7 space-y-3 border-t border-ink/10 pt-6 text-xs text-ink/75">
+                  {[
+                    'Unlimited document uploads & storage',
+                    'Priority AI processing queue',
+                    'Full actionable recommendations & questions',
+                    'Markdown & PDF synthesis export',
+                    'Advanced search and tag filtering',
+                    'Encrypted & private cloud workspace',
+                  ].map((feat) => (
+                    <div key={feat} className="flex items-center gap-2.5">
+                      <Check size={14} className="shrink-0 text-forest" />
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-8 pt-4">
+                <Link href="/register" className={`${buttonBase} w-full bg-forest py-3 text-xs text-paper hover:bg-forest/90`} data-testid="button-pricing-pro">
+                  Start reading with Pro
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-10 text-center font-mono-ui text-[10px] uppercase tracking-[.14em] text-ink/45">
+            No credit card required. Free to explore during preview.
+          </p>
         </section>
       </main>
-      <footer className="border-t border-ink/15 px-5 py-8 md:px-10"><div className="mx-auto flex max-w-[1320px] flex-col gap-5 text-xs text-ink/50 md:flex-row md:items-center md:justify-between"><Logo /><span>© 2024 UNFOLD. A quieter way to understand.</span><div className="flex gap-5"><Link href="/#about" data-testid="link-footer-about">About</Link><Link href="/#pricing" data-testid="link-footer-pricing">Pricing</Link><Link href="/login" data-testid="link-footer-login">Log in</Link></div></div></footer>
+
+      {/* FOOTER */}
+      <footer className="border-t border-ink/15 px-5 py-8 md:px-10">
+        <div className="mx-auto flex max-w-[1320px] flex-col gap-6 text-xs text-ink/50 md:flex-row md:items-center md:justify-between">
+          <Logo />
+          <span>© 2024 UNFOLD. A quieter way to understand.</span>
+          <div className="flex flex-wrap items-center gap-5">
+            <a href="/#how-it-works" onClick={(e) => scrollToAnchor(e, 'how-it-works')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-how-it-works">How It Works</a>
+            <a href="/#features" onClick={(e) => scrollToAnchor(e, 'features')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-features">Features</a>
+            <a href="/#pricing" onClick={(e) => scrollToAnchor(e, 'pricing')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-pricing">Pricing</a>
+            <a href="/#about" onClick={(e) => scrollToAnchor(e, 'about')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-about">About</a>
+            <Link href="/documents" className="hover:text-terracotta" data-testid="link-footer-documents">Documents</Link>
+            <Link href="/login" className="hover:text-terracotta" data-testid="link-footer-login">Log in</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
 export function HowItWorksPage() {
+  const [, setLocation] = useLocation();
+
+  const scrollToAnchor = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    setLocation(`/#${id}`);
+  };
+
   return (
     <div className="min-h-[100dvh] overflow-hidden bg-paper">
       <Navbar />
       <main>
-        <section className="relative mx-auto max-w-[1320px] px-5 pb-16 pt-36 md:px-10 md:pt-40">
+        <section className="relative mx-auto max-w-[1320px] px-5 pb-16 pt-24 md:px-10 md:pt-28">
           <div className="reveal max-w-[760px]">
             <Link href="/" className="mb-6 inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-how-it-works-back">
               <ArrowLeft size={14} /> Back to overview
@@ -375,13 +637,16 @@ export function HowItWorksPage() {
         </section>
       </main>
       <footer className="border-t border-ink/15 px-5 py-8 md:px-10">
-        <div className="mx-auto flex max-w-[1320px] flex-col gap-5 text-xs text-ink/50 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-[1320px] flex-col gap-6 text-xs text-ink/50 md:flex-row md:items-center md:justify-between">
           <Logo />
           <span>© 2024 UNFOLD. A quieter way to understand.</span>
-          <div className="flex gap-5">
-            <Link href="/#about" data-testid="link-footer-about">About</Link>
-            <Link href="/#pricing" data-testid="link-footer-pricing">Pricing</Link>
-            <Link href="/login" data-testid="link-footer-login">Log in</Link>
+          <div className="flex flex-wrap items-center gap-5">
+            <a href="/#how-it-works" onClick={(e) => scrollToAnchor(e, 'how-it-works')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-how-it-works">How It Works</a>
+            <a href="/#features" onClick={(e) => scrollToAnchor(e, 'features')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-features">Features</a>
+            <a href="/#pricing" onClick={(e) => scrollToAnchor(e, 'pricing')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-pricing">Pricing</a>
+            <a href="/#about" onClick={(e) => scrollToAnchor(e, 'about')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-about">About</a>
+            <Link href="/documents" className="hover:text-terracotta" data-testid="link-footer-documents">Documents</Link>
+            <Link href="/login" className="hover:text-terracotta" data-testid="link-footer-login">Log in</Link>
           </div>
         </div>
       </footer>
