@@ -35,13 +35,16 @@ import {
   Share2,
   Sparkles,
   Tag,
+  Trash2,
   Upload,
   UserRound,
   X,
+  type LucideIcon,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createMockDocument, getDocument, mockDocuments, type DocumentRecord, type DocumentStatus } from '@/data/mock-data';
-import { getMockUser, signInMock, signOutMock } from '@/lib/mock-auth';
+import { useAuth } from '@/lib/auth-context';
+import { documentsApi, type ApiDocument } from '@/lib/api-client';
 
 const buttonBase = 'inline-flex items-center justify-center gap-2 rounded-md text-sm font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50';
 
@@ -406,11 +409,23 @@ export function MobileNav({ onClose }: { onClose: () => void }) {
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const [location, setLocation] = useLocation();
-  const user = getMockUser();
+  const { user, logout } = useAuth();
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (_err) {
+      // Ignored: route back to home
+    }
+    setLocation('/');
+  };
+  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'ME';
+  const displayName = user?.name ?? 'Mara Ellison';
+  const displayEmail = user?.email ?? 'mara@example.com';
+
   return <aside className={`hidden shrink-0 flex-col border-r border-ink/15 bg-sidebar transition-[width] duration-300 md:flex ${collapsed ? 'w-[78px]' : 'w-[230px]'}`}>
     <div className={`flex h-[76px] items-center border-b border-ink/10 ${collapsed ? 'justify-center' : 'px-5'}`}>{collapsed ? <Link href="/" className="grid h-7 w-7 place-items-center rounded-sm border border-[#293d2c]/20 bg-[#e8ddc6]" data-testid="link-collapsed-logo"><UnfoldMark size={16} /></Link> : <Logo />}</div>
     <nav className="flex-1 space-y-1 p-3" aria-label="Document navigation">{navItems.map(({ label, href, icon: Icon }) => { const active = location === href || (href === '/documents' && location.startsWith('/documents/') && !location.includes('/new')); return <Link key={href} href={href} title={collapsed ? label : undefined} className={`flex items-center gap-3 rounded-md px-3 py-3 text-[12px] font-semibold transition-colors ${active ? 'bg-forest text-paper' : 'text-ink/60 hover:bg-ink/5 hover:text-ink'} ${collapsed ? 'justify-center px-0' : ''}`} data-testid={`nav-${label.toLowerCase().replaceAll(' ', '-')}`}><Icon size={17} strokeWidth={1.7} /><span className={collapsed ? 'hidden' : ''}>{label}</span></Link>; })}</nav>
-     <div className={`border-t border-ink/10 p-3 ${collapsed ? 'flex justify-center' : ''}`}><button type="button" onClick={() => { signOutMock(); setLocation('/'); }} className={`flex items-center gap-3 rounded-md px-3 py-3 text-[12px] text-ink/55 hover:bg-ink/5 ${collapsed ? 'px-2' : ''}`} title="Log out" data-testid="button-log-out"><LogOut size={16} /><span className={collapsed ? 'hidden' : ''}>Log out</span></button>{!collapsed && <div className="mt-4 flex items-center gap-2 px-2 pb-1"><div className="grid h-7 w-7 place-items-center rounded-full bg-terracotta text-[9px] font-bold text-paper">{user?.name.slice(0, 2).toUpperCase() ?? 'ME'}</div><div className="min-w-0"><p className="truncate text-[11px] font-semibold">{user?.name ?? 'Mara Ellison'}</p><p className="truncate text-[9px] text-ink/45">{user?.email ?? 'mara@example.com'}</p></div></div>}</div>
+     <div className={`border-t border-ink/10 p-3 ${collapsed ? 'flex justify-center' : ''}`}><button type="button" onClick={handleLogout} className={`flex items-center gap-3 rounded-md px-3 py-3 text-[12px] text-ink/55 hover:bg-ink/5 ${collapsed ? 'px-2' : ''}`} title="Log out" data-testid="button-log-out"><LogOut size={16} /><span className={collapsed ? 'hidden' : ''}>Log out</span></button>{!collapsed && <div className="mt-4 flex items-center gap-2 px-2 pb-1"><div className="grid h-7 w-7 place-items-center rounded-full bg-terracotta text-[9px] font-bold text-paper">{initials}</div><div className="min-w-0"><p className="truncate text-[11px] font-semibold">{displayName}</p><p className="truncate text-[9px] text-ink/45">{displayEmail}</p></div></div>}</div>
   </aside>;
 }
 
@@ -424,9 +439,51 @@ function PageIntro({ eyebrow, title, children }: { eyebrow: string; title: strin
   return <div className="mb-9 flex flex-col gap-5 border-b border-ink/15 pb-7 md:flex-row md:items-end md:justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">{eyebrow}</p><h1 className="mt-3 font-display text-[clamp(2.5rem,5vw,4.6rem)] leading-[.92] tracking-[-.05em]">{title}</h1></div>{children}</div>;
 }
 
-export function DocumentCard({ document }: { document: DocumentRecord }) {
+export function DocumentCard({
+  document,
+  onDelete,
+}: {
+  document: ApiDocument | DocumentRecord;
+  onDelete?: (id: string, name: string) => void;
+}) {
   const accent = { ochre: 'bg-ochre', terracotta: 'bg-terracotta', sage: 'bg-[#aeb99c]', bluegreen: 'bg-[#839f94]', plum: 'bg-[#9c8f91]' }[document.accent] ?? 'bg-ochre';
-  return <Link href={`/documents/${document.id}`} className="group block border-b border-ink/15 py-4 transition-colors hover:bg-ink/[.025]" data-testid={`card-document-${document.id}`}><div className="grid grid-cols-[auto_1fr_auto] items-center gap-4"><div className={`grid h-11 w-10 place-items-center ${accent} text-paper`}><FileText size={18} strokeWidth={1.5} /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate font-display text-[17px] group-hover:text-terracotta">{document.name}</p><span className="rounded-full border border-forest/20 px-2 py-0.5 font-mono-ui text-[8px] uppercase tracking-[.08em] text-forest">{document.status}</span></div><p className="mt-1 truncate text-[11px] text-ink/50">{document.pages} pages · {document.words} words <span className="mx-1.5 text-ink/25">·</span> {document.description}</p></div><div className="hidden items-center gap-8 text-right sm:flex"><p className="font-mono-ui text-[10px] text-ink/45">{document.date}</p><ArrowRight size={16} className="text-ink/30 transition-transform group-hover:translate-x-1 group-hover:text-terracotta" /></div></div></Link>;
+  const formattedDate = (document as ApiDocument).createdAt
+    ? new Date((document as ApiDocument).createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : (document as DocumentRecord).date || 'Recently added';
+
+  return <div className="group flex items-center justify-between border-b border-ink/15 py-4 transition-colors hover:bg-ink/[.025]" data-testid={`card-document-${document.id}`}>
+    <Link href={`/documents/${document.id}`} className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-4">
+      <div className={`grid h-11 w-10 place-items-center ${accent} text-paper`}><FileText size={18} strokeWidth={1.5} /></div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate font-display text-[17px] group-hover:text-terracotta">{document.name}</p>
+          <span className="rounded-full border border-forest/20 px-2 py-0.5 font-mono-ui text-[8px] uppercase tracking-[.08em] text-forest">{document.status}</span>
+        </div>
+        <p className="mt-1 truncate text-[11px] text-ink/50">{document.pages || 1} pages · {document.words || '—'} words <span className="mx-1.5 text-ink/25">·</span> {document.description}</p>
+      </div>
+    </Link>
+    <div className="flex items-center gap-4 pl-4 text-right">
+      <p className="hidden font-mono-ui text-[10px] text-ink/45 sm:block">{formattedDate}</p>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(document.id, document.name);
+          }}
+          className="grid h-8 w-8 place-items-center rounded text-ink/30 opacity-0 transition-opacity hover:bg-terracotta/10 hover:text-terracotta group-hover:opacity-100"
+          title="Delete document"
+          data-testid={`button-delete-document-${document.id}`}
+        >
+          <Trash2 size={15} />
+        </button>
+      )}
+      <Link href={`/documents/${document.id}`} className="hidden sm:inline-block">
+        <ArrowRight size={16} className="text-ink/30 transition-transform group-hover:translate-x-1 group-hover:text-terracotta" />
+      </Link>
+    </div>
+  </div>;
 }
 
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
@@ -441,8 +498,37 @@ export function DocumentsPage() {
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<'All' | DocumentStatus>('All');
-  const filtered = useMemo(() => mockDocuments.filter((document) => `${document.name} ${document.description}`.toLowerCase().includes(query.toLowerCase()) && (filter === 'All' || document.status === filter)), [query, filter]);
-  return <AppShell><PageIntro eyebrow="Documents" title="Your library."><div className="flex flex-wrap items-center gap-4"><Link href="/" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-back-home"><ArrowLeft size={15} /> Back to home</Link><Link href="/documents/new" className={`${buttonBase} bg-forest px-4 py-3 text-paper hover:bg-forest/90`} data-testid="button-new-document"><Plus size={15} /> New document</Link></div></PageIntro><div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><label className="relative block max-w-[360px] flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/40" size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents..." className="h-10 w-full border border-ink/15 bg-card pl-9 pr-3 text-sm outline-none placeholder:text-ink/35 focus:border-terracotta" data-testid="input-search-documents" /></label><div className="relative"><button type="button" onClick={() => setFilterOpen(!filterOpen)} className={`${buttonBase} w-full justify-between border border-ink/15 bg-card px-3 py-2.5 text-xs sm:w-[150px]`} data-testid="button-filter-documents"><Filter size={14} /> {filter} <ChevronDown size={13} /></button>{filterOpen && <div className="absolute right-0 z-20 mt-2 w-[170px] border border-ink/15 bg-card p-1 shadow-lg">{(['All', 'Ready', 'Processing', 'Needs attention'] as const).map((value) => <button type="button" key={value} onClick={() => { setFilter(value); setFilterOpen(false); }} className="block w-full px-3 py-2 text-left text-xs hover:bg-ink/5" data-testid={`filter-${value.toLowerCase().replaceAll(' ', '-')}`}>{value}</button>)}</div>}</div></div><div className="border-t border-ink/15">{filtered.length ? filtered.map((document) => <DocumentCard key={document.id} document={document} />) : <EmptyState title="No documents found" body="Try another search, or bring in a document that deserves your attention." action={<Link href="/documents/new" className={`${buttonBase} bg-forest px-4 py-2.5 text-paper`} data-testid="button-empty-upload">Upload document</Link>} />}</div></AppShell>;
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['documents'],
+    queryFn: documentsApi.getAll,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => documentsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+
+  const documents = data?.documents || [];
+
+  const filtered = useMemo(() => {
+    return documents.filter((doc) => {
+      const matchesQuery = `${doc.name} ${doc.description || ''}`.toLowerCase().includes(query.toLowerCase());
+      const matchesFilter = filter === 'All' || doc.status === filter;
+      return matchesQuery && matchesFilter;
+    });
+  }, [documents, query, filter]);
+
+  const handleDelete = (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  return <AppShell><PageIntro eyebrow="Documents" title="Your library."><div className="flex flex-wrap items-center gap-4"><Link href="/" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-back-home"><ArrowLeft size={15} /> Back to home</Link><Link href="/documents/new" className={`${buttonBase} bg-forest px-4 py-3 text-paper hover:bg-forest/90`} data-testid="button-new-document"><Plus size={15} /> New document</Link></div></PageIntro><div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><label className="relative block max-w-[360px] flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/40" size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search documents..." className="h-10 w-full border border-ink/15 bg-card pl-9 pr-3 text-sm outline-none placeholder:text-ink/35 focus:border-terracotta" data-testid="input-search-documents" /></label><div className="relative"><button type="button" onClick={() => setFilterOpen(!filterOpen)} className={`${buttonBase} w-full justify-between border border-ink/15 bg-card px-3 py-2.5 text-xs sm:w-[150px]`} data-testid="button-filter-documents"><Filter size={14} /> {filter} <ChevronDown size={13} /></button>{filterOpen && <div className="absolute right-0 z-20 mt-2 w-[170px] border border-ink/15 bg-card p-1 shadow-lg">{(['All', 'Ready', 'Processing', 'Needs attention'] as const).map((value) => <button type="button" key={value} onClick={() => { setFilter(value); setFilterOpen(false); }} className="block w-full px-3 py-2 text-left text-xs hover:bg-ink/5" data-testid={`filter-${value.toLowerCase().replaceAll(' ', '-')}`}>{value}</button>)}</div>}</div></div><div className="border-t border-ink/15">{isLoading ? (<div className="py-20 text-center text-sm text-ink/55"><LoaderCircle size={24} className="mx-auto mb-3 animate-spin text-terracotta" />Opening your library...</div>) : isError ? (<ErrorState onRetry={() => refetch()} />) : filtered.length ? (filtered.map((doc) => <DocumentCard key={doc.id} document={doc} onDelete={handleDelete} />)) : (<EmptyState title="No documents found" body={query ? "No documents match your search criteria." : "Bring in a document that deserves your attention."} action={<Link href="/documents/new" className={`${buttonBase} bg-forest px-4 py-2.5 text-paper`} data-testid="button-empty-upload">Upload document</Link>} />)}</div></AppShell>;
 }
 
 export function UploadZone({ onFile }: { onFile: (file: File) => void }) {
@@ -459,26 +545,62 @@ export function NewDocumentPage() {
   const [, setLocation] = useLocation();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
-  const handleUpload = () => { const document = createMockDocument(title || file?.name || 'Research notes'); setLocation(`/documents/${document.id}/processing`); };
-  return <AppShell><PageIntro eyebrow="New document" title="Make room for a thought."><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-cancel-upload"><ArrowLeft size={15} /> Cancel</Link></PageIntro><div className="mx-auto grid max-w-[1000px] gap-9 lg:grid-cols-[1.3fr_.7fr]"><div><UploadZone onFile={(nextFile) => { setFile(nextFile); if (!title) setTitle(nextFile.name.replace(/\.[^/.]+$/, '')); }} />{file && <div className="mt-4"><FilePreview file={file} onRemove={() => setFile(null)} /></div>}<div className="mt-7"><label className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-ink/55" htmlFor="document-title">Document name</label><input id="document-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Give this document a name" className="mt-2 h-12 w-full border border-ink/15 bg-card px-4 text-sm outline-none placeholder:text-ink/35 focus:border-terracotta" data-testid="input-document-title" /></div><button type="button" disabled={!file && !title} onClick={handleUpload} className={`${buttonBase} mt-6 w-full bg-forest px-5 py-3.5 text-paper hover:bg-forest/90`} data-testid="button-upload-document"><Sparkles size={15} /> Begin understanding</button></div><aside className="border-t border-ink/15 pt-7 lg:border-l lg:border-t-0 lg:pl-8"><p className="font-mono-ui text-[10px] uppercase tracking-[.16em] text-terracotta">What happens next</p><div className="mt-6 space-y-6">{[['01', 'We read the whole thing', 'Structure, claims, evidence, and the questions underneath.'], ['02', 'We find the signal', 'Key points and main ideas, kept in the language of the document.'], ['03', 'You decide what matters', 'Suggestions to help your next read go further.']].map(([number, heading, body]) => <div key={number} className="flex gap-4"><span className="font-mono-ui text-[10px] text-terracotta">{number}</span><div><p className="font-display text-lg">{heading}</p><p className="mt-1 text-xs leading-5 text-ink/55">{body}</p></div></div>)}</div><div className="mt-12 border-t border-ink/15 pt-5"><p className="text-xs leading-5 text-ink/50">Your documents stay private to your library. This is a local preview using mock data.</p></div></aside></div></AppShell>;
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleUpload = async () => {
+    if (!file) {
+      setError('Please select a document file to upload.');
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const res = await documentsApi.upload(file, title);
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      setLocation(`/documents/${res.document.id}/processing`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to upload document. Please try again.';
+      setError(message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return <AppShell><PageIntro eyebrow="New document" title="Make room for a thought."><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-cancel-upload"><ArrowLeft size={15} /> Cancel</Link></PageIntro><div className="mx-auto grid max-w-[1000px] gap-9 lg:grid-cols-[1.3fr_.7fr]"><div>{error && <div className="mb-5 rounded border border-terracotta/30 bg-terracotta/10 p-3 text-xs leading-5 text-terracotta" data-testid="upload-error">{error}</div>}<UploadZone onFile={(nextFile) => { setFile(nextFile); setError(null); if (!title) setTitle(nextFile.name.replace(/\.[^/.]+$/, '')); }} />{file && <div className="mt-4"><FilePreview file={file} onRemove={() => { setFile(null); setError(null); }} /></div>}<div className="mt-7"><label className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-ink/55" htmlFor="document-title">Document name</label><input id="document-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Give this document a name" className="mt-2 h-12 w-full border border-ink/15 bg-card px-4 text-sm outline-none placeholder:text-ink/35 focus:border-terracotta" data-testid="input-document-title" /></div><button type="button" disabled={!file || uploading} onClick={handleUpload} className={`${buttonBase} mt-6 w-full bg-forest px-5 py-3.5 text-paper hover:bg-forest/90`} data-testid="button-upload-document">{uploading ? (<><LoaderCircle size={15} className="animate-spin" /> Saving document...</>) : (<><Sparkles size={15} /> Begin understanding</>)}</button></div><aside className="border-t border-ink/15 pt-7 lg:border-l lg:border-t-0 lg:pl-8"><p className="font-mono-ui text-[10px] uppercase tracking-[.16em] text-terracotta">What happens next</p><div className="mt-6 space-y-6">{[['01', 'We read the whole thing', 'Structure, claims, evidence, and the questions underneath.'], ['02', 'We find the signal', 'Key points and main ideas, kept in the language of the document.'], ['03', 'You decide what matters', 'Suggestions to help your next read go further.']].map(([number, heading, body]) => <div key={number} className="flex gap-4"><span className="font-mono-ui text-[10px] text-terracotta">{number}</span><div><p className="font-display text-lg">{heading}</p><p className="mt-1 text-xs leading-5 text-ink/55">{body}</p></div></div>)}</div><div className="mt-12 border-t border-ink/15 pt-5"><p className="text-xs leading-5 text-ink/50">Your documents stay private to your library. Stored securely on your UNFOLD workspace.</p></div></aside></div></AppShell>;
 }
 
 export function ProcessingTimeline({ complete = false }: { complete?: boolean }) {
   const steps = ['Document received', 'Reading the document', 'Finding the important parts', 'Creating the summary', 'Preparing insights'];
-  return <div className="space-y-0">{steps.map((step, index) => { const done = complete || index < 2; const current = !complete && index === 2; return <div key={step} className="flex gap-4"><div className="flex flex-col items-center"><div className={`grid h-7 w-7 place-items-center rounded-full border ${done ? 'border-forest bg-forest text-paper' : current ? 'border-terracotta bg-terracotta text-paper' : 'border-ink/20 bg-paper text-ink/25'}`}>{done ? <Check size={14} /> : current ? <LoaderCircle size={14} className="animate-spin" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</div>{index !== steps.length - 1 && <div className={`h-10 w-px ${done ? 'bg-forest/40' : 'bg-ink/15'}`} />}</div><div className="pb-7 pt-1"><p className={`text-sm ${done || current ? 'font-semibold text-ink' : 'text-ink/35'}`}>{step}</p>{current && <p className="mt-1 text-xs text-ink/50">Looking for the shape of the argument...</p>}</div></div>; })}</div>;
+  return <div className="space-y-0">{steps.map((step, index) => { const done = complete || index < 1; const current = !complete && index === 1; return <div key={step} className="flex gap-4"><div className="flex flex-col items-center"><div className={`grid h-7 w-7 place-items-center rounded-full border ${done ? 'border-forest bg-forest text-paper' : current ? 'border-terracotta bg-terracotta text-paper' : 'border-ink/20 bg-paper text-ink/25'}`}>{done ? <Check size={14} /> : current ? <LoaderCircle size={14} className="animate-spin" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</div>{index !== steps.length - 1 && <div className={`h-10 w-px ${done ? 'bg-forest/40' : 'bg-ink/15'}`} />}</div><div className="pb-7 pt-1"><p className={`text-sm ${done || current ? 'font-semibold text-ink' : 'text-ink/35'}`}>{step}</p>{current && <p className="mt-1 text-xs text-ink/50">Stored securely in your reading room...</p>}</div></div>; })}</div>;
 }
 
 export function ProcessingPage({ id }: { id?: string }) {
-  const [, setLocation] = useLocation();
-  const document = getDocument(id);
-  const [progress, setProgress] = useState(32);
-  useEffect(() => { const timer = window.setInterval(() => setProgress((value) => { if (value >= 100) { window.clearInterval(timer); return 100; } return value + 17; }), 900); return () => window.clearInterval(timer); }, []);
-  useEffect(() => { if (progress >= 100) { const timer = window.setTimeout(() => setLocation(`/documents/${document.id}`), 700); return () => window.clearTimeout(timer); } return undefined; }, [progress, setLocation, document.id]);
-  return <AppShell><div className="mx-auto grid max-w-[940px] gap-12 py-6 md:grid-cols-[1fr_.8fr] md:py-12"><div><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/50 hover:text-terracotta" data-testid="link-processing-back"><ArrowLeft size={15} /> Back to documents</Link><p className="mt-14 font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Making sense of your document</p><h1 className="mt-4 font-display text-[clamp(3rem,6vw,5.4rem)] leading-[.9] tracking-[-.05em]">A little patience<br /><em>for a lot less reading.</em></h1><p className="mt-7 max-w-[390px] text-sm leading-6 text-ink/60">We are reading <strong className="text-ink">{document.name}</strong> for the ideas that deserve to stay with you.</p><div className="mt-10 h-1 w-full max-w-[440px] bg-ink/10"><div className="h-full bg-terracotta transition-[width] duration-500" style={{ width: `${progress}%` }} /></div><div className="mt-3 flex max-w-[440px] justify-between font-mono-ui text-[9px] uppercase tracking-[.12em] text-ink/45"><span>{progress < 100 ? 'Reading in progress' : 'Ready to open'}</span><span>{progress}%</span></div></div><div className="paper-texture border border-ink/15 bg-card p-6 md:p-8"><div className="mb-8 flex items-center gap-3 border-b border-ink/15 pb-5"><div className="grid h-10 w-9 place-items-center bg-terracotta text-paper"><FileText size={17} /></div><div><p className="font-display text-lg">{document.name}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.12em] text-ink/45">Reading room</p></div></div><ProcessingTimeline complete={progress >= 100} /></div></div></AppShell>;
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['document', id],
+    queryFn: () => documentsApi.getById(id!),
+    enabled: !!id,
+  });
+  const document = data?.document;
+
+  if (isLoading) {
+    return <AppShell><div className="py-20 text-center text-sm text-ink/55"><LoaderCircle size={24} className="mx-auto mb-3 animate-spin text-terracotta" />Opening reading room...</div></AppShell>;
+  }
+
+  if (isError || !document) {
+    return <AppShell><ErrorState /></AppShell>;
+  }
+
+  return <AppShell><div className="mx-auto grid max-w-[940px] gap-12 py-6 md:grid-cols-[1fr_.8fr] md:py-12"><div><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/50 hover:text-terracotta" data-testid="link-processing-back"><ArrowLeft size={15} /> Back to documents</Link><p className="mt-14 font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Document Library Room</p><h1 className="mt-4 font-display text-[clamp(3rem,6vw,5.4rem)] leading-[.9] tracking-[-.05em]">A little patience<br /><em>for a lot less reading.</em></h1><p className="mt-7 max-w-[390px] text-sm leading-6 text-ink/60"><strong className="text-ink">{document.name}</strong> is safely stored in your reading room.</p><div className="mt-8 flex items-center gap-4"><Link href={`/documents/${document.id}`} className={`${buttonBase} bg-forest px-5 py-3 text-paper hover:bg-forest/90`} data-testid="button-open-document-workspace">Open Document Workspace <ArrowRight size={14} /></Link></div></div><div className="paper-texture border border-ink/15 bg-card p-6 md:p-8"><div className="mb-8 flex items-center gap-3 border-b border-ink/15 pb-5"><div className="grid h-10 w-9 place-items-center bg-terracotta text-paper"><FileText size={17} /></div><div><p className="font-display text-lg">{document.name}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.12em] text-ink/45">Reading room · {document.status}</p></div></div><ProcessingTimeline complete={false} /></div></div></AppShell>;
 }
 
-export function DocumentPreview({ document, collapsed, onToggle }: { document: DocumentRecord; collapsed: boolean; onToggle: () => void }) {
-  return <section className={`paper-texture relative overflow-hidden border border-ink/15 bg-card transition-all duration-300 ${collapsed ? 'h-[72px]' : 'min-h-[620px]'}`}><div className="flex items-center justify-between border-b border-ink/15 px-4 py-3"><div className="flex min-w-0 items-center gap-3"><FileText size={15} className="text-terracotta" /><p className="truncate text-xs font-semibold">{document.name}</p></div><div className="flex items-center gap-1"><span className="hidden font-mono-ui text-[9px] text-ink/40 sm:inline">1 / {document.pages}</span><button type="button" onClick={onToggle} className="grid h-8 w-8 place-items-center text-ink/50 hover:bg-ink/5" aria-label={collapsed ? 'Expand preview' : 'Collapse preview'} data-testid="button-toggle-preview">{collapsed ? <ChevronDown size={16} /> : <PanelLeftClose size={16} />}</button></div></div>{!collapsed && <div className="flex justify-center p-8"><div className="relative min-h-[500px] w-full max-w-[380px] rotate-[-1deg] bg-[#fcf7ed] p-8 paper-shadow"><div className="mb-6 border-b border-ink/15 pb-3"><p className="font-display text-xl">Research Paper</p><p className="mt-1 font-mono-ui text-[8px] uppercase tracking-[.14em] text-ink/45">A study in productive attention</p></div><p className="font-display text-[11px] italic">Abstract</p><div className="doc-lines mt-3 h-[95px] text-[8px] leading-[18px] text-ink/55">This paper explores the impact of machine learning techniques on productivity across knowledge work domains.</div><div className="mt-7 border-t border-ink/15 pt-4"><p className="font-display text-[11px]">1. Introduction</p><div className="doc-lines mt-3 h-[185px] text-[8px] leading-[18px] text-ink/55">As the tools around knowledge work change, it becomes important to understand the conditions under which assistance becomes meaningful. The study follows a group of participants through a series of ordinary tasks, measuring both speed and confidence.</div></div><span className="absolute left-[15%] top-[31%] h-4 w-[65%] bg-ochre/50" /><span className="absolute left-[15%] top-[55%] h-4 w-[52%] bg-ochre/50" /><span className="absolute bottom-7 right-8 font-mono-ui text-[8px] text-ink/35">01</span></div></div>}</section>;
+export function DocumentPreview({ document, collapsed, onToggle }: { document: ApiDocument | DocumentRecord; collapsed: boolean; onToggle: () => void }) {
+  const fileSizeText = 'fileSize' in document && document.fileSize
+    ? `${(document.fileSize / 1024 / 1024).toFixed(2)} MB`
+    : 'Indexed';
+
+  return <section className={`paper-texture relative overflow-hidden border border-ink/15 bg-card transition-all duration-300 ${collapsed ? 'h-[72px]' : 'min-h-[620px]'}`}><div className="flex items-center justify-between border-b border-ink/15 px-4 py-3"><div className="flex min-w-0 items-center gap-3"><FileText size={15} className="text-terracotta" /><p className="truncate text-xs font-semibold">{document.name}</p></div><div className="flex items-center gap-1"><span className="hidden font-mono-ui text-[9px] text-ink/40 sm:inline">1 / {document.pages || 1}</span><button type="button" onClick={onToggle} className="grid h-8 w-8 place-items-center text-ink/50 hover:bg-ink/5" aria-label={collapsed ? 'Expand preview' : 'Collapse preview'} data-testid="button-toggle-preview">{collapsed ? <ChevronDown size={16} /> : <PanelLeftClose size={16} />}</button></div></div>{!collapsed && <div className="flex justify-center p-8"><div className="relative min-h-[500px] w-full max-w-[380px] rotate-[-1deg] bg-[#fcf7ed] p-8 paper-shadow"><div className="mb-6 border-b border-ink/15 pb-3"><p className="font-display text-xl">{document.name.replace(/\.[^/.]+$/, '')}</p><p className="mt-1 font-mono-ui text-[8px] uppercase tracking-[.14em] text-ink/45">Stored Document</p></div><p className="font-display text-[11px] italic">Document Overview</p><div className="doc-lines mt-3 h-[95px] text-[8px] leading-[18px] text-ink/55">{document.description || 'Document stored securely in your UNFOLD library.'}</div><div className="mt-7 border-t border-ink/15 pt-4"><p className="font-display text-[11px]">Reading Status</p><div className="doc-lines mt-3 h-[185px] text-[8px] leading-[18px] text-ink/55">Status: {document.status}. File size: {fileSizeText}. Awaiting full automated extraction and summarization in the next milestone.</div></div><span className="absolute left-[15%] top-[31%] h-4 w-[65%] bg-ochre/50" /><span className="absolute left-[15%] top-[55%] h-4 w-[52%] bg-ochre/50" /><span className="absolute bottom-7 right-8 font-mono-ui text-[8px] text-ink/35">01</span></div></div>}</section>;
 }
 
 export function SummaryLengthControl({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -501,18 +623,44 @@ export function Suggestions({ suggestions }: { suggestions: string[] }) {
   return <div className="space-y-3">{suggestions.map((suggestion) => <div key={suggestion} className="flex gap-3 border border-ink/10 bg-[#ede4d1]/60 p-4"><Lightbulb size={16} className="mt-0.5 shrink-0 text-terracotta" strokeWidth={1.5} /><p className="text-sm leading-6 text-ink/70">{suggestion}</p></div>)}</div>;
 }
 
-export function ResultsWorkspace({ document }: { document: DocumentRecord }) {
+export function ResultsWorkspace({ document }: { document: ApiDocument | DocumentRecord }) {
   const [active, setActive] = useState('Summary');
   const [length, setLength] = useState('Medium');
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const copySummary = () => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); };
-  return <div className="grid gap-6 xl:grid-cols-[minmax(300px,.8fr)_minmax(500px,1.2fr)]"><DocumentPreview document={document} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} /><section className="min-w-0 border border-ink/15 bg-card p-5 md:p-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="font-mono-ui text-[9px] uppercase tracking-[.15em] text-terracotta">Understanding</p><h2 className="mt-2 font-display text-3xl">{document.name.replace('.pdf', '')}</h2></div><div className="flex gap-1"><button type="button" onClick={copySummary} className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5" aria-label="Copy summary" data-testid="button-copy-summary">{copied ? <Check size={15} className="text-forest" /> : <Copy size={15} />}</button><button type="button" onClick={() => window.print()} className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5" aria-label="Download document" data-testid="button-download-results"><ArrowDownToLine size={15} /></button><button type="button" className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5" aria-label="Share document" data-testid="button-share-results"><Share2 size={15} /></button></div></div><div className="overflow-x-auto"><SummaryTabs active={active} onChange={setActive} /></div><div className="pt-7">{active === 'Summary' && <div><div className="mb-7 flex items-center justify-between gap-4"><p className="font-display text-xl">Summary</p><div className="flex items-center gap-3"><span className="hidden font-mono-ui text-[9px] uppercase text-ink/40 sm:inline">Summary length</span><div className="w-[180px]"><SummaryLengthControl value={length} onChange={setLength} /></div></div></div><p className="max-w-[660px] text-[15px] leading-8 text-ink/70">{length === 'Short' ? 'A focused read on how machine learning can improve productive capacity while keeping human judgment in view.' : length === 'Long' ? `${document.summary} The most useful implication is not simply that these tools work, but that their value grows when teams can see, question, and shape the reasoning around them.` : document.summary}</p><div className="mt-10 grid gap-3 border-t border-ink/10 pt-6 sm:grid-cols-3">{[['7', 'key ideas'], ['3', 'main threads'], ['5 min', 'saved today']].map(([number, label]) => <div key={label}><p className="font-display text-2xl">{number}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.1em] text-ink/45">{label}</p></div>)}</div></div>}{active === 'Key Points' && <div><p className="mb-6 font-display text-xl">Key points</p><KeyPoints points={document.keyPoints} /></div>}{active === 'Main Ideas' && <div><p className="mb-6 font-display text-xl">Main ideas</p><MainIdeas ideas={document.mainIdeas} /></div>}{active === 'Suggestions' && <div><p className="mb-6 font-display text-xl">Suggestions for a closer read</p><Suggestions suggestions={document.suggestions} /></div>}</div></section></div>;
+  const copySummary = () => {
+    if (document.summary) {
+      navigator.clipboard.writeText(document.summary);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  const hasSummary = !!document.summary && document.summary !== 'Document uploaded and awaiting reading.' && document.summary !== 'Document uploaded and ready for processing.';
+  const hasKeyPoints = document.keyPoints && document.keyPoints.length > 0;
+  const hasMainIdeas = document.mainIdeas && document.mainIdeas.length > 0;
+  const hasSuggestions = document.suggestions && document.suggestions.length > 0;
+
+  return <div className="grid gap-6 xl:grid-cols-[minmax(300px,.8fr)_minmax(500px,1.2fr)]"><DocumentPreview document={document} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} /><section className="min-w-0 border border-ink/15 bg-card p-5 md:p-8"><div className="mb-7 flex items-start justify-between gap-4"><div><p className="font-mono-ui text-[9px] uppercase tracking-[.15em] text-terracotta">Understanding</p><h2 className="mt-2 font-display text-3xl">{document.name.replace(/\.[^/.]+$/, '')}</h2></div><div className="flex gap-1"><button type="button" onClick={copySummary} className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5" aria-label="Copy summary" data-testid="button-copy-summary">{copied ? <Check size={15} className="text-forest" /> : <Copy size={15} />}</button><button type="button" onClick={() => window.print()} className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5" aria-label="Download document" data-testid="button-download-results"><ArrowDownToLine size={15} /></button><button type="button" className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5" aria-label="Share document" data-testid="button-share-results"><Share2 size={15} /></button></div></div><div className="overflow-x-auto"><SummaryTabs active={active} onChange={setActive} /></div><div className="pt-7">{active === 'Summary' && <div><div className="mb-7 flex items-center justify-between gap-4"><p className="font-display text-xl">Summary</p><div className="flex items-center gap-3"><span className="hidden font-mono-ui text-[9px] uppercase text-ink/40 sm:inline">Summary length</span><div className="w-[180px]"><SummaryLengthControl value={length} onChange={setLength} /></div></div></div>{hasSummary ? (<p className="max-w-[660px] text-[15px] leading-8 text-ink/70">{document.summary}</p>) : (<div className="rounded border border-dashed border-ink/20 bg-paper/60 p-6 text-sm leading-6 text-ink/60"><p className="font-semibold text-ink">Document stored in your UNFOLD library.</p><p className="mt-1">Full AI summaries, claim extraction, and key takeaways will unfold in the upcoming AI processing milestone.</p></div>)}<div className="mt-10 grid gap-3 border-t border-ink/10 pt-6 sm:grid-cols-3">{[[String(document.pages || 1), 'pages stored'], [String(document.words || '—'), 'words indexed'], [document.status, 'status']].map(([number, label]) => <div key={label}><p className="font-display text-2xl">{number}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.1em] text-ink/45">{label}</p></div>)}</div></div>}{active === 'Key Points' && <div><p className="mb-6 font-display text-xl">Key points</p>{hasKeyPoints ? <KeyPoints points={document.keyPoints} /> : <p className="text-sm text-ink/50">Key points extraction will be generated during the AI analysis milestone.</p>}</div>}{active === 'Main Ideas' && <div><p className="mb-6 font-display text-xl">Main ideas</p>{hasMainIdeas ? <MainIdeas ideas={document.mainIdeas} /> : <p className="text-sm text-ink/50">Main ideas will be structured during the AI analysis milestone.</p>}</div>}{active === 'Suggestions' && <div><p className="mb-6 font-display text-xl">Suggestions for a closer read</p>{hasSuggestions ? <Suggestions suggestions={document.suggestions} /> : <p className="text-sm text-ink/50">Follow-up suggestions will appear once the document is analyzed.</p>}</div>}</div></section></div>;
 }
 
 export function ResultsPage({ id }: { id?: string }) {
-  const document = getDocument(id);
-  return <AppShell><div className="mb-8 flex items-center justify-between"><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-results-back"><ArrowLeft size={15} /> Back to documents</Link><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-forest"><CheckCircle2 size={13} className="mr-1 inline" /> Ready to understand</span></div><ResultsWorkspace document={document} /></AppShell>;
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['document', id],
+    queryFn: () => documentsApi.getById(id!),
+    enabled: !!id,
+  });
+  const document = data?.document;
+
+  if (isLoading) {
+    return <AppShell><div className="py-20 text-center text-sm text-ink/55"><LoaderCircle size={24} className="mx-auto mb-3 animate-spin text-terracotta" />Opening document workspace...</div></AppShell>;
+  }
+
+  if (isError || !document) {
+    return <AppShell><ErrorState /></AppShell>;
+  }
+
+  return <AppShell><div className="mb-8 flex items-center justify-between"><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-results-back"><ArrowLeft size={15} /> Back to documents</Link><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-forest"><CheckCircle2 size={13} className="mr-1 inline" /> {document.status}</span></div><ResultsWorkspace document={document} /></AppShell>;
 }
 
 export function AuthLayout({ children, caption }: { children: ReactNode; caption: string }) {
@@ -521,11 +669,33 @@ export function AuthLayout({ children, caption }: { children: ReactNode; caption
 
 function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [, setLocation] = useLocation();
+  const { login, register } = useAuth();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const submit = (event: FormEvent) => { event.preventDefault(); signInMock(email || 'mara@example.com', name || 'Mara Ellison'); setLocation('/documents'); };
-  return <AuthLayout caption={mode === 'login' ? 'Your library of knowledge, waiting where you left it.' : 'A place for your documents, your questions, and the thinking that follows.'}><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">{mode === 'login' ? 'Welcome back' : 'Begin a clearer way of working'}</p><h1 className="mt-4 font-display text-5xl leading-[.9] tracking-[-.05em]">{mode === 'login' ? 'Make sense of something.' : 'Create your reading room.'}</h1><p className="mt-5 text-sm leading-6 text-ink/55">{mode === 'login' ? 'Pick up where you left off.' : 'Make long documents easier to carry.'}</p><form onSubmit={submit} className="mt-9 space-y-4">{mode === 'register' && <label className="block"><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Name</span><input value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-11 w-full border border-ink/15 bg-card px-3 text-sm outline-none focus:border-terracotta" placeholder="Your name" data-testid="input-name" /></label>}<label className="block"><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Email</span><input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full border border-ink/15 bg-card px-3 text-sm outline-none focus:border-terracotta" placeholder="you@example.com" data-testid="input-email" /></label><label className="block"><div className="flex justify-between"><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Password</span>{mode === 'login' && <Link href="/forgot-password" className="text-[10px] text-terracotta hover:underline" data-testid="link-forgot-password">Forgot password?</Link>}</div><input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 h-11 w-full border border-ink/15 bg-card px-3 text-sm outline-none focus:border-terracotta" placeholder="At least 8 characters" data-testid="input-password" /></label><button type="submit" className={`${buttonBase} w-full bg-forest py-3.5 text-paper hover:bg-forest/90`} data-testid={`button-submit-${mode}`}>{mode === 'login' ? 'Continue' : 'Create account'} <ArrowRight size={15} /></button></form><div className="my-7 flex items-center gap-3 text-[10px] text-ink/35"><span className="h-px flex-1 bg-ink/10" />or<span className="h-px flex-1 bg-ink/10" /></div><button type="button" onClick={() => { signInMock('mara@example.com'); setLocation('/documents'); }} className={`${buttonBase} w-full border border-ink/15 bg-card py-3 text-ink/70 hover:bg-ink/5`} data-testid="button-continue-google">Continue with Google</button><p className="mt-7 text-center text-xs text-ink/50">{mode === 'login' ? 'New to UNFOLD?' : 'Already have an account?'} <Link href={mode === 'login' ? '/register' : '/login'} className="font-semibold text-terracotta hover:underline" data-testid="link-switch-auth">{mode === 'login' ? 'Create an account' : 'Sign in'}</Link></p></AuthLayout>;
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      if (mode === 'login') {
+        await login({ email, password });
+      } else {
+        await register({ name, email, password });
+      }
+      setLocation('/documents');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Authentication failed. Please check your credentials.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return <AuthLayout caption={mode === 'login' ? 'Your library of knowledge, waiting where you left it.' : 'A place for your documents, your questions, and the thinking that follows.'}><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">{mode === 'login' ? 'Welcome back' : 'Begin a clearer way of working'}</p><h1 className="mt-4 font-display text-5xl leading-[.9] tracking-[-.05em]">{mode === 'login' ? 'Make sense of something.' : 'Create your reading room.'}</h1><p className="mt-5 text-sm leading-6 text-ink/55">{mode === 'login' ? 'Pick up where you left off.' : 'Make long documents easier to carry.'}</p>{error && <div className="mt-6 rounded border border-terracotta/40 bg-terracotta/10 p-3 text-xs leading-5 text-terracotta" data-testid="auth-error-message">{error}</div>}<form onSubmit={submit} className="mt-7 space-y-4">{mode === 'register' && <label className="block"><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Name</span><input value={name} onChange={(event) => setName(event.target.value)} required minLength={2} className="mt-2 h-11 w-full border border-ink/15 bg-card px-3 text-sm outline-none focus:border-terracotta" placeholder="Your name" data-testid="input-name" /></label>}<label className="block"><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Email</span><input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full border border-ink/15 bg-card px-3 text-sm outline-none focus:border-terracotta" placeholder="you@example.com" data-testid="input-email" /></label><label className="block"><div className="flex justify-between"><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Password</span>{mode === 'login' && <Link href="/forgot-password" className="text-[10px] text-terracotta hover:underline" data-testid="link-forgot-password">Forgot password?</Link>}</div><input type="password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 h-11 w-full border border-ink/15 bg-card px-3 text-sm outline-none focus:border-terracotta" placeholder="At least 8 characters" data-testid="input-password" /></label><button type="submit" disabled={loading} className={`${buttonBase} w-full bg-forest py-3.5 text-paper hover:bg-forest/90`} data-testid={`button-submit-${mode}`}>{loading ? 'Please wait...' : mode === 'login' ? 'Continue' : 'Create account'} <ArrowRight size={15} /></button></form><div className="my-7 flex items-center gap-3 text-[10px] text-ink/35"><span className="h-px flex-1 bg-ink/10" />or<span className="h-px flex-1 bg-ink/10" /></div><button type="button" onClick={() => { setLocation('/documents'); }} className={`${buttonBase} w-full border border-ink/15 bg-card py-3 text-ink/70 hover:bg-ink/5`} data-testid="button-continue-google">Continue as guest</button><p className="mt-7 text-center text-xs text-ink/50">{mode === 'login' ? 'New to UNFOLD?' : 'Already have an account?'} <Link href={mode === 'login' ? '/register' : '/login'} className="font-semibold text-terracotta hover:underline" data-testid="link-switch-auth">{mode === 'login' ? 'Create an account' : 'Sign in'}</Link></p></AuthLayout>;
 }
 
 export function LoginPage() { return <AuthForm mode="login" />; }
@@ -538,6 +708,10 @@ export function ForgotPasswordPage() {
 
 export function SettingsPage() {
   const [saved, setSaved] = useState(false);
-  const user = getMockUser();
-  return <AppShell><PageIntro eyebrow="Settings" title="Your preferences." /><div className="mx-auto max-w-[780px] space-y-8"><section className="border border-ink/15 bg-card p-6 md:p-8"><div className="flex items-center gap-4 border-b border-ink/10 pb-6"><div className="grid h-14 w-14 place-items-center rounded-full bg-terracotta text-sm font-bold text-paper">{user?.name.slice(0, 2).toUpperCase() ?? 'ME'}</div><div><h2 className="font-display text-2xl">{user?.name ?? 'Mara Ellison'}</h2><p className="mt-1 text-sm text-ink/50">{user?.email ?? 'mara@example.com'}</p></div><button type="button" className={`${buttonBase} ml-auto hidden border border-ink/15 px-3 py-2 text-xs sm:inline-flex`} data-testid="button-change-avatar">Change photo</button></div><div className="grid gap-5 pt-7 sm:grid-cols-2"><label><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Full name</span><input defaultValue={user?.name ?? 'Mara Ellison'} className="mt-2 h-11 w-full border border-ink/15 bg-paper px-3 text-sm outline-none focus:border-terracotta" data-testid="input-settings-name" /></label><label><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Email address</span><input defaultValue={user?.email ?? 'mara@example.com'} className="mt-2 h-11 w-full border border-ink/15 bg-paper px-3 text-sm outline-none focus:border-terracotta" data-testid="input-settings-email" /></label></div><button type="button" onClick={() => { setSaved(true); window.setTimeout(() => setSaved(false), 1800); }} className={`${buttonBase} mt-7 bg-forest px-4 py-3 text-paper`} data-testid="button-save-settings">{saved ? <Check size={15} /> : null}{saved ? 'Saved' : 'Save changes'}</button></section><section className="border border-ink/15 bg-card p-6 md:p-8"><p className="font-mono-ui text-[10px] uppercase tracking-[.15em] text-terracotta">Reading preferences</p><div className="mt-5 divide-y divide-ink/10"><label className="flex items-center justify-between py-4"><span><span className="block text-sm font-semibold">Default summary length</span><span className="mt-1 block text-xs text-ink/50">Choose how much context appears first.</span></span><select className="border border-ink/15 bg-paper px-3 py-2 text-xs outline-none" defaultValue="Medium" data-testid="select-summary-length"><option>Short</option><option>Medium</option><option>Long</option></select></label><label className="flex items-center justify-between py-4"><span><span className="block text-sm font-semibold">Email when a document is ready</span><span className="mt-1 block text-xs text-ink/50">A quiet note when the reading is complete.</span></span><input type="checkbox" defaultChecked className="h-4 w-4 accent-[#293d2c]" data-testid="checkbox-email-notification" /></label></div></section></div></AppShell>;
+  const { user } = useAuth();
+  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'ME';
+  const displayName = user?.name ?? 'Mara Ellison';
+  const displayEmail = user?.email ?? 'mara@example.com';
+
+  return <AppShell><PageIntro eyebrow="Settings" title="Your preferences." /><div className="mx-auto max-w-[780px] space-y-8"><section className="border border-ink/15 bg-card p-6 md:p-8"><div className="flex items-center gap-4 border-b border-ink/10 pb-6"><div className="grid h-14 w-14 place-items-center rounded-full bg-terracotta text-sm font-bold text-paper">{initials}</div><div><h2 className="font-display text-2xl">{displayName}</h2><p className="mt-1 text-sm text-ink/50">{displayEmail}</p></div><button type="button" className={`${buttonBase} ml-auto hidden border border-ink/15 px-3 py-2 text-xs sm:inline-flex`} data-testid="button-change-avatar">Change photo</button></div><div className="grid gap-5 pt-7 sm:grid-cols-2"><label><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Full name</span><input key={displayName} defaultValue={displayName} className="mt-2 h-11 w-full border border-ink/15 bg-paper px-3 text-sm outline-none focus:border-terracotta" data-testid="input-settings-name" /></label><label><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Email address</span><input key={displayEmail} defaultValue={displayEmail} className="mt-2 h-11 w-full border border-ink/15 bg-paper px-3 text-sm outline-none focus:border-terracotta" data-testid="input-settings-email" /></label></div><button type="button" onClick={() => { setSaved(true); window.setTimeout(() => setSaved(false), 1800); }} className={`${buttonBase} mt-7 bg-forest px-4 py-3 text-paper`} data-testid="button-save-settings">{saved ? <Check size={15} /> : null}{saved ? 'Saved' : 'Save changes'}</button></section><section className="border border-ink/15 bg-card p-6 md:p-8"><p className="font-mono-ui text-[10px] uppercase tracking-[.15em] text-terracotta">Reading preferences</p><div className="mt-5 divide-y divide-ink/10"><label className="flex items-center justify-between py-4"><span><span className="block text-sm font-semibold">Default summary length</span><span className="mt-1 block text-xs text-ink/50">Choose how much context appears first.</span></span><select className="border border-ink/15 bg-paper px-3 py-2 text-xs outline-none" defaultValue={user?.preferences?.defaultSummaryLength ?? 'Medium'} data-testid="select-summary-length"><option>Short</option><option>Medium</option><option>Long</option></select></label><label className="flex items-center justify-between py-4"><span><span className="block text-sm font-semibold">Email when a document is ready</span><span className="mt-1 block text-xs text-ink/50">A quiet note when the reading is complete.</span></span><input type="checkbox" defaultChecked={user?.preferences?.emailNotification ?? true} className="h-4 w-4 accent-[#293d2c]" data-testid="checkbox-email-notification" /></label></div></section></div></AppShell>;
 }
