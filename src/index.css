@@ -113,6 +113,9 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   * { @apply border-border; }
   body {
     @apply font-sans antialiased bg-background text-foreground;
