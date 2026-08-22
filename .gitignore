@@ -36,3 +36,7 @@ Thumbs.db
 # Uploaded document files
 uploads/
 backend/uploads/
+backend/dist/
+
+# Patch files
+*.patch
