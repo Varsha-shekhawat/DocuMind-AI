@@ -1,6 +1,16 @@
 import { Collection, ObjectId } from 'mongodb';
+import crypto from 'node:crypto';
 import { getDb } from '../db/connection.js';
-import type { DocumentDocument, DocumentStatus, DocumentStage, DocumentSummary, MainIdea } from '../models/document.model.js';
+import type {
+  DocumentDocument,
+  DocumentStatus,
+  DocumentStage,
+  DocumentSummary,
+  MainIdea,
+  DocumentNote,
+  SafeDocumentNote,
+  DocumentAccent,
+} from '../models/document.model.js';
 import { getRandomAccent } from '../models/document.model.js';
 
 const DOCUMENTS_COLLECTION = 'documents';
@@ -251,3 +261,179 @@ export async function deleteDocumentByIdAndUser(
 
   return existing;
 }
+
+export interface AddNoteInput {
+  content: string;
+  excerpt?: string;
+  color?: DocumentAccent;
+}
+
+export interface UpdateNoteInput {
+  content?: string;
+  excerpt?: string;
+  color?: DocumentAccent;
+}
+
+/**
+ * Adds a new note/annotation to a document.
+ */
+export async function addDocumentNote(
+  documentId: string,
+  userId: string,
+  input: AddNoteInput
+): Promise<SafeDocumentNote | null> {
+  if (!ObjectId.isValid(documentId) || !ObjectId.isValid(userId)) {
+    return null;
+  }
+
+  const now = new Date();
+  const newNote: DocumentNote = {
+    id: crypto.randomUUID(),
+    content: input.content.trim(),
+    excerpt: input.excerpt?.trim() || undefined,
+    color: input.color || 'ochre',
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const collection = getDocumentsCollection();
+  const result = await collection.findOneAndUpdate(
+    { _id: new ObjectId(documentId), userId: new ObjectId(userId) },
+    {
+      $push: { notes: newNote },
+      $set: { updatedAt: now },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!result) {
+    return null;
+  }
+
+  return {
+    id: newNote.id,
+    content: newNote.content,
+    excerpt: newNote.excerpt,
+    color: newNote.color,
+    createdAt: newNote.createdAt.toISOString(),
+    updatedAt: newNote.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Updates an existing note on a document.
+ */
+export async function updateDocumentNote(
+  documentId: string,
+  userId: string,
+  noteId: string,
+  input: UpdateNoteInput
+): Promise<SafeDocumentNote | null> {
+  if (!ObjectId.isValid(documentId) || !ObjectId.isValid(userId) || !noteId) {
+    return null;
+  }
+
+  const now = new Date();
+  const collection = getDocumentsCollection();
+  const doc = await collection.findOne({
+    _id: new ObjectId(documentId),
+    userId: new ObjectId(userId),
+  });
+
+  if (!doc || !doc.notes) {
+    return null;
+  }
+
+  const noteIndex = doc.notes.findIndex((n) => n.id === noteId);
+  if (noteIndex === -1) {
+    return null;
+  }
+
+  const existingNote = doc.notes[noteIndex];
+  if (!existingNote) {
+    return null;
+  }
+
+  const updatedNote: DocumentNote = {
+    ...existingNote,
+    content: input.content !== undefined ? input.content.trim() : existingNote.content,
+    excerpt: input.excerpt !== undefined ? input.excerpt.trim() : existingNote.excerpt,
+    color: input.color || existingNote.color,
+    updatedAt: now,
+  };
+
+  await collection.updateOne(
+    { _id: new ObjectId(documentId), userId: new ObjectId(userId), 'notes.id': noteId },
+    {
+      $set: {
+        'notes.$': updatedNote,
+        updatedAt: now,
+      },
+    }
+  );
+
+  return {
+    id: updatedNote.id,
+    content: updatedNote.content,
+    excerpt: updatedNote.excerpt,
+    color: updatedNote.color,
+    createdAt: updatedNote.createdAt instanceof Date ? updatedNote.createdAt.toISOString() : String(updatedNote.createdAt),
+    updatedAt: updatedNote.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Deletes a note from a document.
+ */
+export async function deleteDocumentNote(
+  documentId: string,
+  userId: string,
+  noteId: string
+): Promise<boolean> {
+  if (!ObjectId.isValid(documentId) || !ObjectId.isValid(userId) || !noteId) {
+    return false;
+  }
+
+  const collection = getDocumentsCollection();
+  const result = await collection.updateOne(
+    { _id: new ObjectId(documentId), userId: new ObjectId(userId) },
+    {
+      $pull: { notes: { id: noteId } },
+      $set: { updatedAt: new Date() },
+    }
+  );
+
+  return result.modifiedCount > 0;
+}
+
+/**
+ * Retrieves all notes for a specific document.
+ */
+export async function getDocumentNotes(
+  documentId: string,
+  userId: string
+): Promise<SafeDocumentNote[] | null> {
+  if (!ObjectId.isValid(documentId) || !ObjectId.isValid(userId)) {
+    return null;
+  }
+
+  const collection = getDocumentsCollection();
+  const doc = await collection.findOne({
+    _id: new ObjectId(documentId),
+    userId: new ObjectId(userId),
+  });
+
+  if (!doc) {
+    return null;
+  }
+
+  return (doc.notes || []).map((n) => ({
+    id: n.id,
+    content: n.content,
+    excerpt: n.excerpt,
+    color: n.color || 'ochre',
+    createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : String(n.createdAt),
+    updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : String(n.updatedAt),
+  }));
+}
+

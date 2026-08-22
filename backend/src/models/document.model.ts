@@ -33,6 +33,24 @@ export interface MainIdea {
   body: string;
 }
 
+export interface DocumentNote {
+  id: string;
+  content: string;
+  excerpt?: string;
+  color: DocumentAccent;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SafeDocumentNote {
+  id: string;
+  content: string;
+  excerpt?: string;
+  color: DocumentAccent;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DocumentDocument {
   _id: ObjectId;
   userId: ObjectId;
@@ -51,6 +69,7 @@ export interface DocumentDocument {
   keyPoints: string[];
   mainIdeas: MainIdea[];
   suggestions: string[];
+  notes?: DocumentNote[];
   accent: DocumentAccent;
   processingError?: string;
   createdAt: Date;
@@ -74,6 +93,7 @@ export interface SafeDocument {
   keyPoints: string[];
   mainIdeas: MainIdea[];
   suggestions: string[];
+  notes: SafeDocumentNote[];
   accent: DocumentAccent;
   processingError?: string;
   createdAt: string;
@@ -110,6 +130,14 @@ export function toSafeDocument(doc: DocumentDocument): SafeDocument {
     keyPoints: doc.keyPoints || [],
     mainIdeas: doc.mainIdeas || [],
     suggestions: doc.suggestions || [],
+    notes: (doc.notes || []).map((n) => ({
+      id: n.id,
+      content: n.content,
+      excerpt: n.excerpt,
+      color: n.color || 'ochre',
+      createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : String(n.createdAt),
+      updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : String(n.updatedAt),
+    })),
     accent: doc.accent || 'ochre',
     processingError: doc.processingError,
     createdAt: doc.createdAt.toISOString(),

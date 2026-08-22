@@ -63,6 +63,21 @@ export function generateMarkdown(doc: ExportableDocument): string {
     md += `\n`;
   }
 
+  const notes = 'notes' in doc ? doc.notes : undefined;
+  if (notes && notes.length > 0) {
+    md += `## 5. Reader Notes & Annotations\n\n`;
+    notes.forEach((note, i) => {
+      const noteDate = note.createdAt
+        ? new Date(note.createdAt).toLocaleDateString('en-US')
+        : '';
+      md += `### Note 0${i + 1}${noteDate ? ` (${noteDate})` : ''}\n\n`;
+      if (note.excerpt) {
+        md += `> *Excerpt:* "${note.excerpt.trim()}"\n\n`;
+      }
+      md += `${note.content.trim()}\n\n`;
+    });
+  }
+
   md += `---\n`;
   md += `*Generated with UNFOLD · A quieter way to understand.*  \n`;
 
@@ -105,6 +120,7 @@ export function exportToPdf(doc: ExportableDocument): void {
   const shortSummary = variants?.short?.trim() || '';
   const mediumSummary = variants?.medium?.trim() || doc.summary?.trim() || doc.description?.trim() || '';
   const longSummary = variants?.long?.trim() || '';
+  const notes = 'notes' in doc ? doc.notes : undefined;
 
   const printWindow = window.open('', '_blank', 'width=850,height=1000');
   if (!printWindow) {
@@ -307,6 +323,45 @@ export function exportToPdf(doc: ExportableDocument): void {
       : ''
   }
 
+  ${
+    notes && notes.length > 0
+      ? `
+  <h2>5. Reader Notes & Annotations</h2>
+  ${notes
+    .map(
+      (note, i) => `
+    <div class="idea-card" style="border-left-color: ${
+      note.color === 'terracotta'
+        ? '#b75d3f'
+        : note.color === 'sage'
+        ? '#6b826d'
+        : note.color === 'bluegreen'
+        ? '#3b7a74'
+        : note.color === 'plum'
+        ? '#7a3b5c'
+        : '#d7b25c'
+    };">
+      <h3 style="color:#293d2c;">Note 0${i + 1} ${
+        note.createdAt
+          ? `<span style="font-size:10px;font-weight:normal;color:#777;">— ${new Date(
+              note.createdAt
+            ).toLocaleDateString('en-US')}</span>`
+          : ''
+      }</h3>
+      ${
+        note.excerpt
+          ? `<div class="brief-box" style="margin:6px 0;padding:8px 12px;font-size:13px;">"${note.excerpt}"</div>`
+          : ''
+      }
+      <p style="margin-top:6px;">${note.content}</p>
+    </div>
+  `
+    )
+    .join('')}
+  `
+      : ''
+  }
+
   <div class="footer">
     <span>UNFOLD Synthesis</span>
     <span>A quieter way to understand.</span>
@@ -325,3 +380,4 @@ export function exportToPdf(doc: ExportableDocument): void {
   printWindow.document.write(html);
   printWindow.document.close();
 }
+

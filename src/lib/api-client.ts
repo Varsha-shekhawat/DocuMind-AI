@@ -21,6 +21,15 @@ export interface DocumentSummaryVariants {
 
 export type DocumentStage = 'uploaded' | 'extracting' | 'analyzing' | 'ready' | 'failed';
 
+export interface ApiNote {
+  id: string;
+  content: string;
+  excerpt?: string;
+  color: DocumentAccent;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ApiDocument {
   id: string;
   userId: string;
@@ -38,6 +47,7 @@ export interface ApiDocument {
   keyPoints: string[];
   mainIdeas: { title: string; body: string }[];
   suggestions: string[];
+  notes?: ApiNote[];
   accent: DocumentAccent;
   processingError?: string;
   createdAt: string;
@@ -223,6 +233,39 @@ export const documentsApi = {
         body: JSON.stringify({ question }),
       }
     );
+  },
+
+  async getNotes(id: string): Promise<{ success: boolean; notes: ApiNote[] }> {
+    return apiRequest<{ success: boolean; notes: ApiNote[] }>(`/api/documents/${id}/notes`, {
+      method: 'GET',
+    });
+  },
+
+  async addNote(
+    id: string,
+    data: { content: string; excerpt?: string; color?: DocumentAccent }
+  ): Promise<{ success: boolean; note: ApiNote }> {
+    return apiRequest<{ success: boolean; note: ApiNote }>(`/api/documents/${id}/notes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateNote(
+    id: string,
+    noteId: string,
+    data: { content?: string; excerpt?: string; color?: DocumentAccent }
+  ): Promise<{ success: boolean; note: ApiNote }> {
+    return apiRequest<{ success: boolean; note: ApiNote }>(`/api/documents/${id}/notes/${noteId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteNote(id: string, noteId: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>(`/api/documents/${id}/notes/${noteId}`, {
+      method: 'DELETE',
+    });
   },
 
   getExportUrl(id: string, format: 'markdown' | 'json' = 'markdown'): string {

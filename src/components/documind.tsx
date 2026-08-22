@@ -45,7 +45,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createMockDocument, getDocument, mockDocuments, type DocumentRecord, type DocumentStatus } from '@/data/mock-data';
 import { useAuth } from '@/lib/auth-context';
-import { documentsApi, type ApiDocument, type DocumentStage } from '@/lib/api-client';
+import { documentsApi, type ApiDocument, type DocumentStage, type ApiNote, type DocumentAccent } from '@/lib/api-client';
 import { exportToMarkdown, exportToPdf } from '@/lib/export-utils';
 
 const buttonBase = 'inline-flex items-center justify-center gap-2 rounded-md text-sm font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50';
@@ -1192,7 +1192,7 @@ export function SummaryLengthControl({
 export function SummaryTabs({ active, onChange }: { active: string; onChange: (value: string) => void }) {
   return (
     <div className="flex min-w-max gap-6 border-b border-ink/15 px-1" role="tablist">
-      {['Summary', 'Key Points', 'Main Ideas', 'Suggestions', 'Ask Document'].map((item) => (
+      {['Summary', 'Key Points', 'Main Ideas', 'Suggestions', 'Ask Document', 'Notes'].map((item) => (
         <button
           type="button"
           key={item}
@@ -1213,29 +1213,67 @@ export function SummaryTabs({ active, onChange }: { active: string; onChange: (v
   );
 }
 
-export function KeyPoints({ points }: { points: string[] }) {
+export function KeyPoints({
+  points,
+  onSaveAsNote,
+}: {
+  points: string[];
+  onSaveAsNote?: (point: string) => void;
+}) {
   return (
     <div className="space-y-0">
       {points.map((point, index) => (
-        <div key={point} className="flex gap-4 border-b border-ink/10 py-4">
-          <span className="font-mono-ui text-[10px] text-terracotta">
-            {String(index + 1).padStart(2, '0')}
-          </span>
-          <p className="text-sm leading-6 text-ink/75">{point}</p>
+        <div key={point} className="flex items-start justify-between gap-4 border-b border-ink/10 py-4 group">
+          <div className="flex gap-4">
+            <span className="font-mono-ui text-[10px] text-terracotta">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <p className="text-sm leading-6 text-ink/75">{point}</p>
+          </div>
+          {onSaveAsNote && (
+            <button
+              type="button"
+              onClick={() => onSaveAsNote(point)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 flex items-center gap-1 text-[10px] text-ink/45 hover:text-terracotta font-mono-ui uppercase tracking-wider"
+              title="Save as note"
+              data-testid={`button-save-keypoint-note-${index}`}
+            >
+              <Plus size={12} /> Note
+            </button>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-export function MainIdeas({ ideas }: { ideas: { title: string; body: string }[] }) {
+export function MainIdeas({
+  ideas,
+  onSaveAsNote,
+}: {
+  ideas: { title: string; body: string }[];
+  onSaveAsNote?: (title: string, body: string) => void;
+}) {
   return (
     <div className="space-y-5">
       {ideas.map((idea, index) => (
-        <div key={idea.title} className="border-l-2 border-ochre pl-4">
-          <div className="flex items-center gap-3">
-            <span className="font-mono-ui text-[9px] text-terracotta">0{index + 1}</span>
-            <h3 className="font-display text-xl">{idea.title}</h3>
+        <div key={idea.title} className="border-l-2 border-ochre pl-4 group relative">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="font-mono-ui text-[9px] text-terracotta">0{index + 1}</span>
+              <h3 className="font-display text-xl">{idea.title}</h3>
+            </div>
+            {onSaveAsNote && (
+              <button
+                type="button"
+                onClick={() => onSaveAsNote(idea.title, idea.body)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-ink/45 hover:text-terracotta font-mono-ui uppercase tracking-wider"
+                title="Save as note"
+                data-testid={`button-save-mainidea-note-${index}`}
+              >
+                <Plus size={12} /> Note
+              </button>
+            )}
           </div>
           <p className="mt-2 text-sm leading-6 text-ink/60">{idea.body}</p>
         </div>
@@ -1275,9 +1313,11 @@ const SUGGESTED_QUESTIONS = [
 export function DocumentQaSection({
   documentId,
   documentName,
+  onSaveAsNote,
 }: {
   documentId: string;
   documentName: string;
+  onSaveAsNote?: (answerText: string, excerpt?: string) => void;
 }) {
   const [messages, setMessages] = useState<QaMessage[]>([]);
   const [inputQuestion, setInputQuestion] = useState('');
@@ -1409,13 +1449,25 @@ export function DocumentQaSection({
                 }`}
                 data-testid={`qa-message-${msg.role}`}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`font-mono-ui text-[9px] uppercase tracking-[.1em] ${msg.role === 'user' ? 'text-paper/70' : 'text-terracotta font-semibold'}`}>
-                    {msg.role === 'user' ? 'You' : 'UNFOLD Assistant'}
-                  </span>
-                  <span className={`text-[9px] ${msg.role === 'user' ? 'text-paper/50' : 'text-ink/35'}`}>
-                    {msg.timestamp}
-                  </span>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`font-mono-ui text-[9px] uppercase tracking-[.1em] ${msg.role === 'user' ? 'text-paper/70' : 'text-terracotta font-semibold'}`}>
+                      {msg.role === 'user' ? 'You' : 'UNFOLD Assistant'}
+                    </span>
+                    <span className={`text-[9px] ${msg.role === 'user' ? 'text-paper/50' : 'text-ink/35'}`}>
+                      {msg.timestamp}
+                    </span>
+                  </div>
+                  {msg.role === 'assistant' && onSaveAsNote && (
+                    <button
+                      type="button"
+                      onClick={() => onSaveAsNote(msg.content, msg.sources?.[0])}
+                      className="flex items-center gap-1 text-[9px] font-mono-ui uppercase tracking-wider text-ink/40 hover:text-terracotta"
+                      title="Save answer to notes"
+                    >
+                      <Plus size={11} /> Save Note
+                    </button>
+                  )}
                 </div>
                 <div className={`whitespace-pre-line leading-6 ${msg.role === 'user' ? 'text-paper' : 'text-ink/80'}`}>
                   {msg.content}
@@ -1495,6 +1547,344 @@ export function DocumentQaSection({
   );
 }
 
+export function DocumentNotesSection({
+  documentId,
+  documentName,
+  initialNotes,
+  presetExcerpt,
+  onClearPresetExcerpt,
+}: {
+  documentId: string;
+  documentName: string;
+  initialNotes?: ApiNote[];
+  presetExcerpt?: string;
+  onClearPresetExcerpt?: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [content, setContent] = useState('');
+  const [excerpt, setExcerpt] = useState(presetExcerpt || '');
+  const [color, setColor] = useState<DocumentAccent>('ochre');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editExcerpt, setEditExcerpt] = useState('');
+  const [editColor, setEditColor] = useState<DocumentAccent>('ochre');
+  const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (presetExcerpt) {
+      setExcerpt(presetExcerpt);
+    }
+  }, [presetExcerpt]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['document-notes', documentId],
+    queryFn: () => documentsApi.getNotes(documentId),
+    initialData: initialNotes ? { success: true, notes: initialNotes } : undefined,
+  });
+
+  const notes = data?.notes || [];
+
+  const addMutation = useMutation({
+    mutationFn: (newNote: { content: string; excerpt?: string; color: DocumentAccent }) =>
+      documentsApi.addNote(documentId, newNote),
+    onSuccess: () => {
+      setContent('');
+      setExcerpt('');
+      if (onClearPresetExcerpt) onClearPresetExcerpt();
+      queryClient.invalidateQueries({ queryKey: ['document-notes', documentId] });
+      queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      noteId,
+      update,
+    }: {
+      noteId: string;
+      update: { content: string; excerpt?: string; color: DocumentAccent };
+    }) => documentsApi.updateNote(documentId, noteId, update),
+    onSuccess: () => {
+      setEditingNoteId(null);
+      queryClient.invalidateQueries({ queryKey: ['document-notes', documentId] });
+      queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (noteId: string) => documentsApi.deleteNote(documentId, noteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['document-notes', documentId] });
+      queryClient.invalidateQueries({ queryKey: ['document', documentId] });
+    },
+  });
+
+  const handleCreateNote = (e: FormEvent) => {
+    e.preventDefault();
+    if (!content.trim() || addMutation.isPending) return;
+    addMutation.mutate({
+      content: content.trim(),
+      excerpt: excerpt.trim() || undefined,
+      color,
+    });
+  };
+
+  const handleStartEdit = (note: ApiNote) => {
+    setEditingNoteId(note.id);
+    setEditContent(note.content);
+    setEditExcerpt(note.excerpt || '');
+    setEditColor(note.color || 'ochre');
+  };
+
+  const handleSaveEdit = (noteId: string) => {
+    if (!editContent.trim() || updateMutation.isPending) return;
+    updateMutation.mutate({
+      noteId,
+      update: {
+        content: editContent.trim(),
+        excerpt: editExcerpt.trim() || undefined,
+        color: editColor,
+      },
+    });
+  };
+
+  const handleCopyNote = (note: ApiNote) => {
+    const text = note.excerpt
+      ? `"${note.excerpt}"\n\n${note.content}`
+      : note.content;
+    navigator.clipboard.writeText(text);
+    setCopiedNoteId(note.id);
+    window.setTimeout(() => setCopiedNoteId(null), 1500);
+  };
+
+  const ACCENT_COLORS: { id: DocumentAccent; label: string; bgClass: string }[] = [
+    { id: 'ochre', label: 'Ochre', bgClass: 'bg-[#d7b25c]' },
+    { id: 'terracotta', label: 'Terracotta', bgClass: 'bg-[#b75d3f]' },
+    { id: 'sage', label: 'Sage', bgClass: 'bg-[#6b826d]' },
+    { id: 'bluegreen', label: 'Bluegreen', bgClass: 'bg-[#3b7a74]' },
+    { id: 'plum', label: 'Plum', bgClass: 'bg-[#7a3b5c]' },
+  ];
+
+  return (
+    <div className="space-y-7">
+      <div>
+        <p className="font-display text-xl">Notes & Annotations</p>
+        <p className="mt-1 text-xs text-ink/55">
+          Capture thoughts, reflections, and key citations for <strong className="text-ink">{documentName}</strong>.
+        </p>
+      </div>
+
+      {/* Create Note Form */}
+      <form onSubmit={handleCreateNote} className="rounded border border-ink/15 bg-paper/60 p-5 space-y-4">
+        <p className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-terracotta">
+          New Observation
+        </p>
+
+        {excerpt && (
+          <div className="relative rounded border-l-2 border-ochre bg-[#f4ecd8]/60 p-3 text-xs italic text-ink/75">
+            <p className="font-mono-ui text-[8px] uppercase not-italic text-ink/40 mb-1">Referenced excerpt:</p>
+            <p>"{excerpt}"</p>
+            <button
+              type="button"
+              onClick={() => {
+                setExcerpt('');
+                if (onClearPresetExcerpt) onClearPresetExcerpt();
+              }}
+              className="absolute right-2 top-2 text-ink/40 hover:text-terracotta"
+              title="Remove excerpt"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          rows={3}
+          placeholder="Write your note, critique, or observation..."
+          className="w-full resize-none border border-ink/15 bg-card p-3 text-sm outline-none placeholder:text-ink/35 focus:border-terracotta"
+          data-testid="input-note-content"
+          required
+        />
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex items-center gap-2">
+            <span className="font-mono-ui text-[9px] uppercase text-ink/45">Color tag:</span>
+            <div className="flex gap-1.5">
+              {ACCENT_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setColor(c.id)}
+                  className={`h-5 w-5 rounded-full ${c.bgClass} transition-transform ${
+                    color === c.id ? 'ring-2 ring-forest ring-offset-2 scale-110' : 'opacity-60 hover:opacity-100'
+                  }`}
+                  title={c.label}
+                  data-testid={`color-tag-${c.id}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!content.trim() || addMutation.isPending}
+            className={`${buttonBase} bg-forest px-4 py-2 text-xs text-paper hover:bg-forest/90`}
+            data-testid="button-save-note"
+          >
+            {addMutation.isPending ? <LoaderCircle size={13} className="animate-spin" /> : <Plus size={13} />}
+            <span>Save Note</span>
+          </button>
+        </div>
+      </form>
+
+      {/* Notes Feed */}
+      <div className="space-y-4">
+        {isLoading && notes.length === 0 ? (
+          <div className="py-8 text-center text-xs text-ink/50">
+            <LoaderCircle size={16} className="mx-auto mb-2 animate-spin text-terracotta" />
+            Loading notes...
+          </div>
+        ) : notes.length === 0 ? (
+          <div className="rounded border border-dashed border-ink/20 bg-paper/40 p-8 text-center">
+            <BookOpen size={20} className="mx-auto mb-2 text-ochre" strokeWidth={1.5} />
+            <p className="font-display text-base">No notes recorded yet</p>
+            <p className="mt-1 text-xs text-ink/50 max-w-[340px] mx-auto">
+              Capture your own thinking, annotations, and questions as you read through the document.
+            </p>
+          </div>
+        ) : (
+          notes.map((note, index) => {
+            const isEditing = editingNoteId === note.id;
+            const borderColorClass =
+              note.color === 'terracotta'
+                ? 'border-l-[#b75d3f]'
+                : note.color === 'sage'
+                ? 'border-l-[#6b826d]'
+                : note.color === 'bluegreen'
+                ? 'border-l-[#3b7a74]'
+                : note.color === 'plum'
+                ? 'border-l-[#7a3b5c]'
+                : 'border-l-[#d7b25c]';
+
+            const formattedDate = note.createdAt
+              ? new Date(note.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : '';
+
+            return (
+              <div
+                key={note.id}
+                className={`rounded border border-ink/10 bg-card p-4 border-l-4 ${borderColorClass} space-y-3 transition-shadow hover:shadow-sm`}
+                data-testid={`note-card-${note.id}`}
+              >
+                <div className="flex items-center justify-between gap-2 border-b border-ink/10 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono-ui text-[9px] uppercase tracking-[.1em] text-terracotta font-semibold">
+                      Note 0{index + 1}
+                    </span>
+                    {formattedDate && (
+                      <span className="font-mono-ui text-[9px] text-ink/40">{formattedDate}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyNote(note)}
+                      className="grid h-6 w-6 place-items-center text-ink/40 hover:text-forest"
+                      title="Copy note"
+                      data-testid={`button-copy-note-${note.id}`}
+                    >
+                      {copiedNoteId === note.id ? <Check size={12} className="text-forest" /> : <Copy size={12} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(note)}
+                      className="grid h-6 w-6 place-items-center text-ink/40 hover:text-forest"
+                      title="Edit note"
+                      data-testid={`button-edit-note-${note.id}`}
+                    >
+                      <Tag size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteMutation.mutate(note.id)}
+                      disabled={deleteMutation.isPending}
+                      className="grid h-6 w-6 place-items-center text-ink/40 hover:text-terracotta"
+                      title="Delete note"
+                      data-testid={`button-delete-note-${note.id}`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {isEditing ? (
+                  <div className="space-y-3 pt-1">
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      rows={3}
+                      className="w-full resize-none border border-ink/15 bg-paper p-2.5 text-sm outline-none focus:border-terracotta"
+                      data-testid={`input-edit-note-${note.id}`}
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex gap-1">
+                        {ACCENT_COLORS.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setEditColor(c.id)}
+                            className={`h-4 w-4 rounded-full ${c.bgClass} ${
+                              editColor === c.id ? 'ring-2 ring-forest ring-offset-1' : 'opacity-50'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingNoteId(null)}
+                          className="text-xs text-ink/50 hover:text-ink px-2 py-1"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEdit(note.id)}
+                          className={`${buttonBase} bg-forest px-3 py-1 text-xs text-paper hover:bg-forest/90`}
+                          data-testid={`button-save-edit-note-${note.id}`}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {note.excerpt && (
+                      <blockquote className="border-l-2 border-ochre pl-2.5 text-xs italic text-ink/65 leading-5">
+                        "{note.excerpt}"
+                      </blockquote>
+                    )}
+                    <p className="whitespace-pre-line text-sm leading-6 text-ink/80">
+                      {note.content}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ResultsWorkspace({ document }: { document: ApiDocument | DocumentRecord }) {
   const [active, setActive] = useState('Summary');
   const [length, setLength] = useState<'Short' | 'Medium' | 'Long'>('Medium');
@@ -1502,6 +1892,7 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
   const [copied, setCopied] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [shared, setShared] = useState(false);
+  const [presetNoteExcerpt, setPresetNoteExcerpt] = useState<string | undefined>(undefined);
 
   const handleShare = () => {
     if (typeof window !== 'undefined') {
@@ -1509,6 +1900,11 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
       setShared(true);
       window.setTimeout(() => setShared(false), 1500);
     }
+  };
+
+  const handleQuickNote = (content: string, excerpt?: string) => {
+    setPresetNoteExcerpt(excerpt || content);
+    setActive('Notes');
   };
 
   const variants = 'summaryVariants' in document ? document.summaryVariants : undefined;
@@ -1670,7 +2066,10 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
             <div>
               <p className="mb-6 font-display text-xl">Key points</p>
               {hasKeyPoints ? (
-                <KeyPoints points={document.keyPoints} />
+                <KeyPoints
+                  points={document.keyPoints}
+                  onSaveAsNote={(pt) => handleQuickNote(`Key point: ${pt}`, pt)}
+                />
               ) : (
                 <p className="text-sm text-ink/50">
                   Key points extraction will appear once analysis completes.
@@ -1682,7 +2081,10 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
             <div>
               <p className="mb-6 font-display text-xl">Main ideas</p>
               {hasMainIdeas ? (
-                <MainIdeas ideas={document.mainIdeas} />
+                <MainIdeas
+                  ideas={document.mainIdeas}
+                  onSaveAsNote={(title, body) => handleQuickNote(`Core idea: ${title}\n\n${body}`, title)}
+                />
               ) : (
                 <p className="text-sm text-ink/50">
                   Main ideas will appear once analysis completes.
@@ -1706,6 +2108,16 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
             <DocumentQaSection
               documentId={document.id}
               documentName={document.name}
+              onSaveAsNote={(ans, src) => handleQuickNote(`Q&A Insight:\n${ans}`, src)}
+            />
+          )}
+          {active === 'Notes' && (
+            <DocumentNotesSection
+              documentId={document.id}
+              documentName={document.name}
+              initialNotes={'notes' in document ? document.notes : undefined}
+              presetExcerpt={presetNoteExcerpt}
+              onClearPresetExcerpt={() => setPresetNoteExcerpt(undefined)}
             />
           )}
         </div>
