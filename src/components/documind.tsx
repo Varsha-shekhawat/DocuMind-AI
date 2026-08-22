@@ -46,7 +46,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createMockDocument, getDocument, mockDocuments, type DocumentRecord, type DocumentStatus } from '@/data/mock-data';
+import type { DocumentRecord, DocumentStatus } from '@/data/mock-data';
 import { useAuth } from '@/lib/auth-context';
 import {
   documentsApi,
