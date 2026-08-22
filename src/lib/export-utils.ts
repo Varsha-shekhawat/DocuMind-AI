@@ -111,18 +111,30 @@ export function exportToMarkdown(doc: ExportableDocument): void {
   URL.revokeObjectURL(url);
 }
 
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 /**
  * Opens a dedicated, styled print window formatted specifically for clean PDF export.
  */
 export function exportToPdf(doc: ExportableDocument): void {
-  const cleanTitle =
+  const rawTitle =
     'title' in doc && doc.title
       ? doc.title
       : 'name' in doc
       ? doc.name.replace(/\.[^/.]+$/, '')
       : 'Document';
 
-  const dateStr =
+  const cleanTitle = escapeHtml(rawTitle);
+
+  const rawDateStr =
     'date' in doc && doc.date
       ? doc.date
       : 'createdAt' in doc && doc.createdAt
@@ -133,14 +145,17 @@ export function exportToPdf(doc: ExportableDocument): void {
         })
       : new Date().toLocaleDateString('en-US');
 
+  const dateStr = escapeHtml(rawDateStr);
+
   const variants = 'summaryVariants' in doc ? doc.summaryVariants : undefined;
-  const shortSummary = variants?.short?.trim() || '';
-  const mediumSummary =
+  const shortSummary = escapeHtml(variants?.short?.trim() || '');
+  const mediumSummary = escapeHtml(
     variants?.medium?.trim() ||
-    doc.summary?.trim() ||
-    ('description' in doc ? doc.description?.trim() : '') ||
-    '';
-  const longSummary = variants?.long?.trim() || '';
+      doc.summary?.trim() ||
+      ('description' in doc ? doc.description?.trim() : '') ||
+      ''
+  );
+  const longSummary = escapeHtml(variants?.long?.trim() || '');
   const notes = 'notes' in doc ? doc.notes : undefined;
 
   const printWindow = window.open('', '_blank', 'width=850,height=1000');
@@ -294,9 +309,9 @@ export function exportToPdf(doc: ExportableDocument): void {
   <div class="meta-bar">
     <span>${doc.pages || 1} Pages</span>
     <span>·</span>
-    <span>${doc.words || '—'} Words</span>
+    <span>${escapeHtml(String(doc.words || '—'))} Words</span>
     <span>·</span>
-    <span>Status: ${doc.status}</span>
+    <span>Status: ${escapeHtml(doc.status)}</span>
   </div>
 
   <h2>1. Executive Summary</h2>
@@ -309,7 +324,7 @@ export function exportToPdf(doc: ExportableDocument): void {
       ? `
   <h2>2. Key Takeaways</h2>
   <ol>
-    ${doc.keyPoints.map((pt) => `<li>${pt}</li>`).join('')}
+    ${doc.keyPoints.map((pt) => `<li>${escapeHtml(pt)}</li>`).join('')}
   </ol>
   `
       : ''
@@ -323,8 +338,8 @@ export function exportToPdf(doc: ExportableDocument): void {
     .map(
       (idea, i) => `
     <div class="idea-card">
-      <h3 style="color:#b75d3f;">0${i + 1}. ${idea.title}</h3>
-      <p>${idea.body}</p>
+      <h3 style="color:#b75d3f;">0${i + 1}. ${escapeHtml(idea.title)}</h3>
+      <p>${escapeHtml(idea.body)}</p>
     </div>
   `
     )
@@ -338,7 +353,7 @@ export function exportToPdf(doc: ExportableDocument): void {
       ? `
   <h2>4. Actionable Insights & Next Inquiries</h2>
   <ul>
-    ${doc.suggestions.map((sug) => `<li>${sug}</li>`).join('')}
+    ${doc.suggestions.map((sug) => `<li>${escapeHtml(sug)}</li>`).join('')}
   </ul>
   `
       : ''
@@ -364,17 +379,19 @@ export function exportToPdf(doc: ExportableDocument): void {
     };">
       <h3 style="color:#293d2c;">Note 0${i + 1} ${
         note.createdAt
-          ? `<span style="font-size:10px;font-weight:normal;color:#777;">— ${new Date(
-              note.createdAt
-            ).toLocaleDateString('en-US')}</span>`
+          ? `<span style="font-size:10px;font-weight:normal;color:#777;">— ${escapeHtml(
+              new Date(note.createdAt).toLocaleDateString('en-US')
+            )}</span>`
           : ''
       }</h3>
       ${
         note.excerpt
-          ? `<div class="brief-box" style="margin:6px 0;padding:8px 12px;font-size:13px;">"${note.excerpt}"</div>`
+          ? `<div class="brief-box" style="margin:6px 0;padding:8px 12px;font-size:13px;">"${escapeHtml(
+              note.excerpt
+            )}"</div>`
           : ''
       }
-      <p style="margin-top:6px;">${note.content}</p>
+      <p style="margin-top:6px;">${escapeHtml(note.content)}</p>
     </div>
   `
     )
