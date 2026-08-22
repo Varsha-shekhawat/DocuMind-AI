@@ -211,4 +211,17 @@ export const documentsApi = {
       method: 'POST',
     });
   },
+
+  async ask(
+    id: string,
+    question: string
+  ): Promise<{ success: boolean; answer: string; documentId: string; sources: string[] }> {
+    return apiRequest<{ success: boolean; answer: string; documentId: string; sources: string[] }>(
+      `/api/documents/${id}/ask`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ question }),
+      }
+    );
+  },
 };
