@@ -51,6 +51,35 @@ export interface SafeDocumentNote {
   updatedAt: string;
 }
 
+export interface DocumentSharing {
+  isPublic: boolean;
+  shareToken?: string;
+  sharedAt?: Date;
+  revokedAt?: Date;
+}
+
+export interface SafeDocumentSharing {
+  isPublic: boolean;
+  shareToken?: string;
+  sharedAt?: string;
+}
+
+export interface PublicSharedDocument {
+  title: string;
+  originalFileName: string;
+  pages: number;
+  words: string;
+  date: string;
+  status: DocumentStatus;
+  summary: string;
+  summaryVariants: DocumentSummary;
+  keyPoints: string[];
+  mainIdeas: MainIdea[];
+  suggestions: string[];
+  accent: DocumentAccent;
+  sharedAt: string;
+}
+
 export interface DocumentDocument {
   _id: ObjectId;
   userId: ObjectId;
@@ -70,6 +99,7 @@ export interface DocumentDocument {
   mainIdeas: MainIdea[];
   suggestions: string[];
   notes?: DocumentNote[];
+  sharing?: DocumentSharing;
   accent: DocumentAccent;
   processingError?: string;
   createdAt: Date;
@@ -94,6 +124,7 @@ export interface SafeDocument {
   mainIdeas: MainIdea[];
   suggestions: string[];
   notes: SafeDocumentNote[];
+  sharing?: SafeDocumentSharing;
   accent: DocumentAccent;
   processingError?: string;
   createdAt: string;
@@ -138,9 +169,47 @@ export function toSafeDocument(doc: DocumentDocument): SafeDocument {
       createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : String(n.createdAt),
       updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : String(n.updatedAt),
     })),
+    sharing: doc.sharing
+      ? {
+          isPublic: !!doc.sharing.isPublic,
+          shareToken: doc.sharing.shareToken,
+          sharedAt: doc.sharing.sharedAt ? doc.sharing.sharedAt.toISOString() : undefined,
+        }
+      : undefined,
     accent: doc.accent || 'ochre',
     processingError: doc.processingError,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * Transforms a database DocumentDocument into a sanitized, public-safe DTO.
+ * Guarantees zero leakage of internal IDs, user identity, private notes, or extracted text.
+ */
+export function toPublicSharedDocument(doc: DocumentDocument): PublicSharedDocument {
+  const summaryText = doc.summary?.medium || doc.summary?.short || doc.summary?.long || doc.description || '';
+  const dateStr = doc.createdAt
+    ? new Date(doc.createdAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : 'Recently';
+
+  return {
+    title: doc.name.replace(/\.[^/.]+$/, ''),
+    originalFileName: doc.originalFileName,
+    pages: doc.pages || 1,
+    words: doc.words ? doc.words.toLocaleString() : '—',
+    date: dateStr,
+    status: doc.status,
+    summary: summaryText,
+    summaryVariants: doc.summary || { short: '', medium: '', long: '' },
+    keyPoints: doc.keyPoints || [],
+    mainIdeas: doc.mainIdeas || [],
+    suggestions: doc.suggestions || [],
+    accent: doc.accent || 'ochre',
+    sharedAt: doc.sharing?.sharedAt ? doc.sharing.sharedAt.toISOString() : new Date().toISOString(),
   };
 }
