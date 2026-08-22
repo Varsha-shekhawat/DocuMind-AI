@@ -51,6 +51,7 @@ import { useAuth } from '@/lib/auth-context';
 import {
   documentsApi,
   sharedApi,
+  userApi,
   type ApiDocument,
   type DocumentStage,
   type ApiNote,
@@ -1898,14 +1899,23 @@ export function DocumentNotesSection({
 }
 
 export function ResultsWorkspace({ document }: { document: ApiDocument | DocumentRecord }) {
+  const { user } = useAuth();
+  const defaultSummaryLength = user?.preferences?.defaultSummaryLength ?? 'Medium';
   const [active, setActive] = useState('Summary');
-  const [length, setLength] = useState<'Short' | 'Medium' | 'Long'>('Medium');
+  const [length, setLength] = useState<'Short' | 'Medium' | 'Long'>(defaultSummaryLength);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [presetNoteExcerpt, setPresetNoteExcerpt] = useState<string | undefined>(undefined);
+
+  // Keep length updated if default summary length changes
+  useEffect(() => {
+    if (user?.preferences?.defaultSummaryLength) {
+      setLength(user.preferences.defaultSummaryLength);
+    }
+  }, [user?.preferences?.defaultSummaryLength]);
 
   const queryClient = useQueryClient();
 
@@ -2624,11 +2634,204 @@ export function ForgotPasswordPage() {
 }
 
 export function SettingsPage() {
-  const [saved, setSaved] = useState(false);
-  const { user } = useAuth();
-  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'ME';
-  const displayName = user?.name ?? 'Mara Ellison';
-  const displayEmail = user?.email ?? 'mara@example.com';
+  const { user, updateUser } = useAuth();
+  const queryClient = useQueryClient();
 
-  return <AppShell><PageIntro eyebrow="Settings" title="Your preferences." /><div className="mx-auto max-w-[780px] space-y-8"><section className="border border-ink/15 bg-card p-6 md:p-8"><div className="flex items-center gap-4 border-b border-ink/10 pb-6"><div className="grid h-14 w-14 place-items-center rounded-full bg-terracotta text-sm font-bold text-paper">{initials}</div><div><h2 className="font-display text-2xl">{displayName}</h2><p className="mt-1 text-sm text-ink/50">{displayEmail}</p></div><button type="button" className={`${buttonBase} ml-auto hidden border border-ink/15 px-3 py-2 text-xs sm:inline-flex`} data-testid="button-change-avatar">Change photo</button></div><div className="grid gap-5 pt-7 sm:grid-cols-2"><label><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Full name</span><input key={displayName} defaultValue={displayName} className="mt-2 h-11 w-full border border-ink/15 bg-paper px-3 text-sm outline-none focus:border-terracotta" data-testid="input-settings-name" /></label><label><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">Email address</span><input key={displayEmail} defaultValue={displayEmail} className="mt-2 h-11 w-full border border-ink/15 bg-paper px-3 text-sm outline-none focus:border-terracotta" data-testid="input-settings-email" /></label></div><button type="button" onClick={() => { setSaved(true); window.setTimeout(() => setSaved(false), 1800); }} className={`${buttonBase} mt-7 bg-forest px-4 py-3 text-paper`} data-testid="button-save-settings">{saved ? <Check size={15} /> : null}{saved ? 'Saved' : 'Save changes'}</button></section><section className="border border-ink/15 bg-card p-6 md:p-8"><p className="font-mono-ui text-[10px] uppercase tracking-[.15em] text-terracotta">Reading preferences</p><div className="mt-5 divide-y divide-ink/10"><label className="flex items-center justify-between py-4"><span><span className="block text-sm font-semibold">Default summary length</span><span className="mt-1 block text-xs text-ink/50">Choose how much context appears first.</span></span><select className="border border-ink/15 bg-paper px-3 py-2 text-xs outline-none" defaultValue={user?.preferences?.defaultSummaryLength ?? 'Medium'} data-testid="select-summary-length"><option>Short</option><option>Medium</option><option>Long</option></select></label><label className="flex items-center justify-between py-4"><span><span className="block text-sm font-semibold">Email when a document is ready</span><span className="mt-1 block text-xs text-ink/50">A quiet note when the reading is complete.</span></span><input type="checkbox" defaultChecked={user?.preferences?.emailNotification ?? true} className="h-4 w-4 accent-[#293d2c]" data-testid="checkbox-email-notification" /></label></div></section></div></AppShell>;
+  const [name, setName] = useState(user?.name ?? '');
+  const [defaultSummaryLength, setDefaultSummaryLength] = useState<'Short' | 'Medium' | 'Long'>(
+    user?.preferences?.defaultSummaryLength ?? 'Medium'
+  );
+  const [emailNotification, setEmailNotification] = useState<boolean>(
+    user?.preferences?.emailNotification ?? true
+  );
+
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Sync local form state when user changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      setDefaultSummaryLength(user.preferences?.defaultSummaryLength ?? 'Medium');
+      setEmailNotification(user.preferences?.emailNotification ?? true);
+    }
+  }, [user]);
+
+  const updateMutation = useMutation({
+    mutationFn: (data: {
+      name: string;
+      preferences: { defaultSummaryLength: 'Short' | 'Medium' | 'Long'; emailNotification: boolean };
+    }) => userApi.updateSettings(data),
+    onSuccess: (response) => {
+      updateUser(response.user);
+      queryClient.invalidateQueries({ queryKey: ['auth-user'] });
+      setSaved(true);
+      setError(null);
+      window.setTimeout(() => setSaved(false), 2500);
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Failed to save settings.';
+      setError(message);
+      setSaved(false);
+    },
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2) {
+      setError('Name must be at least 2 characters.');
+      return;
+    }
+
+    updateMutation.mutate({
+      name: trimmedName,
+      preferences: {
+        defaultSummaryLength,
+        emailNotification,
+      },
+    });
+  };
+
+  const initials = user?.name ? user.name.slice(0, 2).toUpperCase() : 'ME';
+  const displayName = user?.name ?? 'Reader';
+  const displayEmail = user?.email ?? 'you@example.com';
+
+  return (
+    <AppShell>
+      <PageIntro eyebrow="Settings" title="Your preferences." />
+      <div className="mx-auto max-w-[780px]">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {error && (
+            <div
+              className="rounded border border-terracotta/40 bg-terracotta/10 p-3.5 text-xs leading-5 text-terracotta"
+              data-testid="settings-error-message"
+            >
+              {error}
+            </div>
+          )}
+
+          {saved && (
+            <div
+              className="flex items-center gap-2 rounded border border-forest/30 bg-forest/10 p-3.5 text-xs font-medium text-forest"
+              data-testid="settings-success-message"
+            >
+              <CheckCircle2 size={16} />
+              <span>Your settings and preferences have been updated.</span>
+            </div>
+          )}
+
+          <section className="border border-ink/15 bg-card p-6 md:p-8">
+            <div className="flex items-center gap-4 border-b border-ink/10 pb-6">
+              <div className="grid h-14 w-14 place-items-center rounded-full bg-terracotta text-sm font-bold text-paper">
+                {initials}
+              </div>
+              <div>
+                <h2 className="font-display text-2xl">{displayName}</h2>
+                <p className="mt-1 text-sm text-ink/50">{displayEmail}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-5 pt-7 sm:grid-cols-2">
+              <label>
+                <span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">
+                  Full name
+                </span>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  className="mt-2 h-11 w-full border border-ink/15 bg-paper px-3 text-sm outline-none focus:border-terracotta"
+                  data-testid="input-settings-name"
+                />
+              </label>
+              <label>
+                <span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/55">
+                  Email address
+                </span>
+                <input
+                  type="email"
+                  disabled
+                  value={displayEmail}
+                  className="mt-2 h-11 w-full border border-ink/10 bg-ink/5 px-3 text-sm text-ink/50 outline-none cursor-not-allowed"
+                  data-testid="input-settings-email"
+                />
+              </label>
+            </div>
+
+            <div className="mt-7 flex items-center justify-between">
+              <button
+                type="submit"
+                disabled={updateMutation.isPending}
+                className={`${buttonBase} bg-forest px-5 py-3 text-paper hover:bg-forest/90`}
+                data-testid="button-save-settings"
+              >
+                {updateMutation.isPending ? (
+                  <>
+                    <LoaderCircle size={15} className="animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : saved ? (
+                  <>
+                    <Check size={15} />
+                    <span>Saved</span>
+                  </>
+                ) : (
+                  <span>Save changes</span>
+                )}
+              </button>
+            </div>
+          </section>
+
+          <section className="border border-ink/15 bg-card p-6 md:p-8">
+            <p className="font-mono-ui text-[10px] uppercase tracking-[.15em] text-terracotta">
+              Reading preferences
+            </p>
+            <div className="mt-5 divide-y divide-ink/10">
+              <label className="flex items-center justify-between py-4">
+                <span>
+                  <span className="block text-sm font-semibold">Default summary length</span>
+                  <span className="mt-1 block text-xs text-ink/50">
+                    Choose how much context appears first when opening documents.
+                  </span>
+                </span>
+                <select
+                  value={defaultSummaryLength}
+                  onChange={(e) =>
+                    setDefaultSummaryLength(e.target.value as 'Short' | 'Medium' | 'Long')
+                  }
+                  className="border border-ink/15 bg-paper px-3 py-2 text-xs outline-none focus:border-terracotta"
+                  data-testid="select-summary-length"
+                >
+                  <option value="Short">Short</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Long">Long</option>
+                </select>
+              </label>
+              <label className="flex items-center justify-between py-4">
+                <span>
+                  <span className="block text-sm font-semibold">Email when a document is ready</span>
+                  <span className="mt-1 block text-xs text-ink/50">
+                    A quiet note when the reading is complete.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={emailNotification}
+                  onChange={(e) => setEmailNotification(e.target.checked)}
+                  className="h-4 w-4 accent-[#293d2c]"
+                  data-testid="checkbox-email-notification"
+                />
+              </label>
+            </div>
+          </section>
+        </form>
+      </div>
+    </AppShell>
+  );
 }

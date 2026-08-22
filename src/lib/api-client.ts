@@ -1,3 +1,11 @@
+export interface UpdateUserSettingsData {
+  name?: string;
+  preferences?: {
+    defaultSummaryLength?: 'Short' | 'Medium' | 'Long';
+    emailNotification?: boolean;
+  };
+}
+
 export interface User {
   id: string;
   name: string;
@@ -202,6 +210,13 @@ export const authApi = {
     setInMemoryToken(null);
     return result;
   },
+
+  async updateSettings(data: UpdateUserSettingsData): Promise<{ user: User; message: string }> {
+    return apiRequest<{ user: User; message: string }>('/api/auth/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
 };
 
 /**
@@ -328,6 +343,21 @@ export const sharedApi = {
   async getByToken(token: string): Promise<{ success: boolean; document: PublicSharedDocument }> {
     return apiRequest<{ success: boolean; document: PublicSharedDocument }>(`/api/shared/${token}`, {
       method: 'GET',
+    });
+  },
+};
+
+export const userApi = {
+  async getSettings(): Promise<{ user: User }> {
+    return apiRequest<{ user: User }>('/api/user/settings', {
+      method: 'GET',
+    });
+  },
+
+  async updateSettings(data: UpdateUserSettingsData): Promise<{ user: User; message: string }> {
+    return apiRequest<{ user: User; message: string }>('/api/user/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   },
 };

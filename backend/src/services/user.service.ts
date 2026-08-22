@@ -1,6 +1,6 @@
 import { Collection, ObjectId } from 'mongodb';
 import { getDb } from '../db/connection.js';
-import type { UserDocument, SummaryLengthPreference } from '../models/user.model.js';
+import type { UserDocument, SummaryLengthPreference, UserPreferences } from '../models/user.model.js';
 
 const USERS_COLLECTION = 'users';
 
@@ -82,4 +82,54 @@ export async function createUser(input: CreateUserInput): Promise<UserDocument> 
     _id: result.insertedId,
     ...userDoc,
   };
+}
+
+export interface UpdateUserSettingsInput {
+  name?: string;
+  preferences?: Partial<UserPreferences>;
+}
+
+/**
+ * Updates a user's name and/or preferences in the users collection.
+ */
+export async function updateUserSettings(
+  userId: string,
+  input: UpdateUserSettingsInput
+): Promise<UserDocument | null> {
+  if (!ObjectId.isValid(userId)) {
+    return null;
+  }
+
+  const collection = getUsersCollection();
+  const existingUser = await collection.findOne({ _id: new ObjectId(userId) });
+  if (!existingUser) {
+    return null;
+  }
+
+  const now = new Date();
+  const updatedName = input.name !== undefined ? input.name.trim() : existingUser.name;
+  const updatedPreferences: UserPreferences = {
+    defaultSummaryLength:
+      input.preferences?.defaultSummaryLength ||
+      existingUser.preferences?.defaultSummaryLength ||
+      'Medium',
+    emailNotification:
+      input.preferences?.emailNotification !== undefined
+        ? Boolean(input.preferences.emailNotification)
+        : existingUser.preferences?.emailNotification ?? true,
+  };
+
+  const result = await collection.findOneAndUpdate(
+    { _id: new ObjectId(userId) },
+    {
+      $set: {
+        name: updatedName,
+        preferences: updatedPreferences,
+        updatedAt: now,
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  return result;
 }
