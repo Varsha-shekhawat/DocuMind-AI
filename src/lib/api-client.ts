@@ -36,6 +36,7 @@ export interface ApiDocument {
   mainIdeas: { title: string; body: string }[];
   suggestions: string[];
   accent: DocumentAccent;
+  processingError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -199,6 +200,12 @@ export const documentsApi = {
   async delete(id: string): Promise<{ success: boolean; message: string }> {
     return apiRequest<{ success: boolean; message: string }>(`/api/documents/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  async retry(id: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest<{ success: boolean; message: string }>(`/api/documents/${id}/retry`, {
+      method: 'POST',
     });
   },
 };

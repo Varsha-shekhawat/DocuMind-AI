@@ -5,9 +5,11 @@ import {
   getDocumentsByUserId,
   getDocumentByIdAndUser,
   deleteDocumentByIdAndUser,
+  updateDocumentStatus,
 } from '../services/document.service.js';
 import { toSafeDocument } from '../models/document.model.js';
 import { removeFileIfExists } from '../middleware/upload.middleware.js';
+import { runTextExtraction } from '../services/extraction-runner.service.js';
 
 /**
  * Handle document upload: POST /api/documents/upload
@@ -59,6 +61,14 @@ export async function uploadDocument(req: Request, res: Response): Promise<void>
       message: 'Document uploaded successfully.',
       document: safeDoc,
     });
+
+    // Fire-and-forget: the response has already been sent with the document
+    // in its initial 'Processing' state. Real text extraction happens
+    // asynchronously and updates extractedText/pages/words on success, or
+    // moves the document to 'Needs attention' with a persisted error on
+    // failure. The document does NOT move to 'Ready' here -- that terminal
+    // transition happens once AI analysis is wired up in a later milestone.
+    void runTextExtraction(document._id.toHexString(), file.path, file.originalname);
   } catch (error) {
     // Clean up uploaded file if database insertion failed
     await removeFileIfExists(file.path);
@@ -162,6 +172,60 @@ export async function getDocumentById(req: Request, res: Response): Promise<void
         message: 'Failed to retrieve document.',
         statusCode: 500,
       },
+    });
+  }
+}
+
+/**
+ * Handle re-running text extraction on a document stuck in 'Needs attention':
+ * POST /api/documents/:id/retry
+ *
+ * Scoped to extraction only for now -- once AI analysis exists, this will
+ * also re-trigger analysis, but the route/contract stays the same.
+ */
+export async function retryDocumentProcessing(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const rawId = req.params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  try {
+    const document = await getDocumentByIdAndUser(id, req.user.id);
+    if (!document) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Document not found.', statusCode: 404 },
+      });
+      return;
+    }
+
+    await updateDocumentStatus(id, 'Processing');
+
+    res.status(200).json({
+      success: true,
+      message: 'Reprocessing started.',
+    });
+
+    void runTextExtraction(id, document.storagePath, document.originalFileName);
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to retry extraction:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to restart processing.', statusCode: 500 },
     });
   }
 }
