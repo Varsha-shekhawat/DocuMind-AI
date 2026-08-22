@@ -1,41 +1,79 @@
 import { extractDocumentText, ExtractionError } from './extraction.service.js';
-import { updateDocumentStatus, saveExtractionResult, markStage } from './document.service.js';
+import {
+  updateDocumentStatus,
+  saveExtractionResult,
+  saveAnalysisResult,
+  markStage,
+} from './document.service.js';
+import { analyzeDocumentText, AiAnalysisError } from './ai-analysis.service.js';
 
 /**
- * Runs text extraction for a single document and persists the result.
- *
- * This is intentionally fire-and-forget from the controller's perspective:
- * the upload/retry response returns immediately, and the frontend polls
- * GET /api/documents/:id to observe the outcome via `stage` and `status`.
+ * Runs standalone AI analysis on previously extracted text.
  *
  * Stage transitions:
- *   uploaded -> extracting -> analyzing   (success; status stays 'Processing')
- *   uploaded -> extracting -> failed      (failure; status becomes 'Needs attention')
- *
- * On success: extractedText/pages/words are saved and stage advances to
- * 'analyzing'. Nothing currently advances a document out of 'analyzing' --
- * that happens once AI analysis (a later milestone) is wired in, mirroring
- * this same success/failure pattern.
- * On failure: the document moves to 'Needs attention' / stage 'failed' with
- * a human-readable processingError persisted -- it never appears "Ready",
- * and it is never silently stuck in 'Processing' with no explanation.
+ *   analyzing -> ready    (success; status becomes 'Ready')
+ *   analyzing -> failed   (failure; status becomes 'Needs attention')
  */
-export async function runTextExtraction(
+export async function runAiAnalysisPipeline(
+  documentId: string,
+  extractedText: string
+): Promise<void> {
+  await markStage(documentId, 'analyzing');
+  try {
+    const analysis = await analyzeDocumentText(extractedText);
+    await saveAnalysisResult(documentId, analysis);
+    console.log(`[Pipeline Runner] Document ${documentId}: AI analysis completed successfully.`);
+  } catch (error) {
+    const message =
+      error instanceof AiAnalysisError
+        ? error.message
+        : error instanceof Error
+        ? error.message
+        : 'Failed to generate AI analysis for this document.';
+    console.error(`[Pipeline Runner] Document ${documentId}: AI analysis failed:`, error);
+    await updateDocumentStatus(documentId, 'Needs attention', message, 'failed');
+  }
+}
+
+/**
+ * Runs the complete document processing pipeline:
+ *   1. Text extraction from physical storage file
+ *   2. Structured AI analysis via Anthropic Claude
+ *
+ * Stage transitions:
+ *   uploaded -> extracting -> analyzing -> ready
+ *                   \             \
+ *                    -> failed <--
+ */
+export async function runDocumentPipeline(
   documentId: string,
   storagePath: string,
   originalFileName: string
 ): Promise<void> {
   await markStage(documentId, 'extracting');
+  let text = '';
   try {
     const extraction = await extractDocumentText(storagePath, originalFileName);
+    text = extraction.text;
     await saveExtractionResult(documentId, {
       extractedText: extraction.text,
       pages: extraction.pages,
       words: extraction.words,
     });
   } catch (error) {
-    const message = error instanceof ExtractionError ? error.message : 'Failed to extract text from this document.';
-    console.error(`[Extraction Runner] Document ${documentId}: extraction failed:`, error);
+    const message =
+      error instanceof ExtractionError
+        ? error.message
+        : 'Failed to extract text from this document.';
+    console.error(`[Pipeline Runner] Document ${documentId}: extraction failed:`, error);
     await updateDocumentStatus(documentId, 'Needs attention', message, 'failed');
+    return;
   }
+
+  // Proceed immediately to AI analysis
+  await runAiAnalysisPipeline(documentId, text);
 }
+
+// Backward-compatible alias
+export const runTextExtraction = runDocumentPipeline;
+
