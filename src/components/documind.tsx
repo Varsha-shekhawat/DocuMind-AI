@@ -30,6 +30,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  RefreshCw,
   Search,
   Settings,
   Share2,
@@ -836,18 +837,36 @@ export function NewDocumentPage() {
   return <AppShell><PageIntro eyebrow="New document" title="Make room for a thought."><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-cancel-upload"><ArrowLeft size={15} /> Cancel</Link></PageIntro><div className="mx-auto grid max-w-[1000px] gap-9 lg:grid-cols-[1.3fr_.7fr]"><div>{error && <div className="mb-5 rounded border border-terracotta/30 bg-terracotta/10 p-3 text-xs leading-5 text-terracotta" data-testid="upload-error">{error}</div>}<UploadZone onFile={(nextFile) => { setFile(nextFile); setError(null); if (!title) setTitle(nextFile.name.replace(/\.[^/.]+$/, '')); }} />{file && <div className="mt-4"><FilePreview file={file} onRemove={() => { setFile(null); setError(null); }} /></div>}<div className="mt-7"><label className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-ink/55" htmlFor="document-title">Document name</label><input id="document-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Give this document a name" className="mt-2 h-12 w-full border border-ink/15 bg-card px-4 text-sm outline-none placeholder:text-ink/35 focus:border-terracotta" data-testid="input-document-title" /></div><button type="button" disabled={!file || uploading} onClick={handleUpload} className={`${buttonBase} mt-6 w-full bg-forest px-5 py-3.5 text-paper hover:bg-forest/90`} data-testid="button-upload-document">{uploading ? (<><LoaderCircle size={15} className="animate-spin" /> Saving document...</>) : (<><Sparkles size={15} /> Begin understanding</>)}</button></div><aside className="border-t border-ink/15 pt-7 lg:border-l lg:border-t-0 lg:pl-8"><p className="font-mono-ui text-[10px] uppercase tracking-[.16em] text-terracotta">What happens next</p><div className="mt-6 space-y-6">{[['01', 'We read the whole thing', 'Structure, claims, evidence, and the questions underneath.'], ['02', 'We find the signal', 'Key points and main ideas, kept in the language of the document.'], ['03', 'You decide what matters', 'Suggestions to help your next read go further.']].map(([number, heading, body]) => <div key={number} className="flex gap-4"><span className="font-mono-ui text-[10px] text-terracotta">{number}</span><div><p className="font-display text-lg">{heading}</p><p className="mt-1 text-xs leading-5 text-ink/55">{body}</p></div></div>)}</div><div className="mt-12 border-t border-ink/15 pt-5"><p className="text-xs leading-5 text-ink/50">Your documents stay private to your library. Stored securely on your UNFOLD workspace.</p></div></aside></div></AppShell>;
 }
 
-export function ProcessingTimeline({ complete = false }: { complete?: boolean }) {
+export function ProcessingTimeline({ status }: { status: DocumentStatus }) {
   const steps = ['Document received', 'Reading the document', 'Finding the important parts', 'Creating the summary', 'Preparing insights'];
-  return <div className="space-y-0">{steps.map((step, index) => { const done = complete || index < 1; const current = !complete && index === 1; return <div key={step} className="flex gap-4"><div className="flex flex-col items-center"><div className={`grid h-7 w-7 place-items-center rounded-full border ${done ? 'border-forest bg-forest text-paper' : current ? 'border-terracotta bg-terracotta text-paper' : 'border-ink/20 bg-paper text-ink/25'}`}>{done ? <Check size={14} /> : current ? <LoaderCircle size={14} className="animate-spin" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</div>{index !== steps.length - 1 && <div className={`h-10 w-px ${done ? 'bg-forest/40' : 'bg-ink/15'}`} />}</div><div className="pb-7 pt-1"><p className={`text-sm ${done || current ? 'font-semibold text-ink' : 'text-ink/35'}`}>{step}</p>{current && <p className="mt-1 text-xs text-ink/50">Stored securely in your reading room...</p>}</div></div>; })}</div>;
+  const failed = status === 'Needs attention';
+  const complete = status === 'Ready';
+  return <div className="space-y-0">{steps.map((step, index) => {
+    const done = complete || (!failed && false); // real progress is opaque server-side; we only know Processing vs Ready vs Needs attention
+    const current = !complete && !failed && index === 1;
+    const errored = failed && index === 1;
+    return <div key={step} className="flex gap-4"><div className="flex flex-col items-center"><div className={`grid h-7 w-7 place-items-center rounded-full border ${done ? 'border-forest bg-forest text-paper' : errored ? 'border-terracotta bg-terracotta text-paper' : current ? 'border-terracotta bg-terracotta text-paper' : 'border-ink/20 bg-paper text-ink/25'}`}>{done ? <Check size={14} /> : errored ? <X size={14} /> : current ? <LoaderCircle size={14} className="animate-spin" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</div>{index !== steps.length - 1 && <div className={`h-10 w-px ${done ? 'bg-forest/40' : 'bg-ink/15'}`} />}</div><div className="pb-7 pt-1"><p className={`text-sm ${done || current || errored ? 'font-semibold text-ink' : 'text-ink/35'}`}>{step}</p>{current && <p className="mt-1 text-xs text-ink/50">Stored securely in your reading room...</p>}{errored && <p className="mt-1 text-xs text-terracotta">Something went wrong here — see below.</p>}</div></div>;
+  })}</div>;
 }
 
 export function ProcessingPage({ id }: { id?: string }) {
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ['document', id],
     queryFn: () => documentsApi.getById(id!),
     enabled: !!id,
+    // Poll while the document is still being processed; stop once it
+    // reaches a terminal state (Ready or Needs attention).
+    refetchInterval: (query) => (query.state.data?.document.status === 'Processing' ? 2000 : false),
   });
   const document = data?.document;
+
+  const retryMutation = useMutation({
+    mutationFn: () => documentsApi.retry(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['document', id] });
+    },
+  });
 
   if (isLoading) {
     return <AppShell><div className="py-20 text-center text-sm text-ink/55"><LoaderCircle size={24} className="mx-auto mb-3 animate-spin text-terracotta" />Opening reading room...</div></AppShell>;
@@ -857,7 +876,10 @@ export function ProcessingPage({ id }: { id?: string }) {
     return <AppShell><ErrorState /></AppShell>;
   }
 
-  return <AppShell><div className="mx-auto grid max-w-[940px] gap-12 py-6 md:grid-cols-[1fr_.8fr] md:py-12"><div><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/50 hover:text-terracotta" data-testid="link-processing-back"><ArrowLeft size={15} /> Back to documents</Link><p className="mt-14 font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Document Library Room</p><h1 className="mt-4 font-display text-[clamp(3rem,6vw,5.4rem)] leading-[.9] tracking-[-.05em]">A little patience<br /><em>for a lot less reading.</em></h1><p className="mt-7 max-w-[390px] text-sm leading-6 text-ink/60"><strong className="text-ink">{document.name}</strong> is safely stored in your reading room.</p><div className="mt-8 flex items-center gap-4"><Link href={`/documents/${document.id}`} className={`${buttonBase} bg-forest px-5 py-3 text-paper hover:bg-forest/90`} data-testid="button-open-document-workspace">Open Document Workspace <ArrowRight size={14} /></Link></div></div><div className="paper-texture border border-ink/15 bg-card p-6 md:p-8"><div className="mb-8 flex items-center gap-3 border-b border-ink/15 pb-5"><div className="grid h-10 w-9 place-items-center bg-terracotta text-paper"><FileText size={17} /></div><div><p className="font-display text-lg">{document.name}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.12em] text-ink/45">Reading room · {document.status}</p></div></div><ProcessingTimeline complete={false} /></div></div></AppShell>;
+  const needsAttention = document.status === 'Needs attention';
+  const ready = document.status === 'Ready';
+
+  return <AppShell><div className="mx-auto grid max-w-[940px] gap-12 py-6 md:grid-cols-[1fr_.8fr] md:py-12"><div><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/50 hover:text-terracotta" data-testid="link-processing-back"><ArrowLeft size={15} /> Back to documents</Link><p className="mt-14 font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Document Library Room</p><h1 className="mt-4 font-display text-[clamp(3rem,6vw,5.4rem)] leading-[.9] tracking-[-.05em]">{needsAttention ? <>Something needs<br /><em>your attention.</em></> : <>A little patience<br /><em>for a lot less reading.</em></>}</h1><p className="mt-7 max-w-[390px] text-sm leading-6 text-ink/60"><strong className="text-ink">{document.name}</strong> {needsAttention ? 'ran into a problem while processing.' : 'is safely stored in your reading room.'}</p>{needsAttention && document.processingError && <div className="mt-5 max-w-[390px] rounded border border-terracotta/30 bg-terracotta/10 p-3 text-xs leading-5 text-terracotta" data-testid="processing-error-message">{document.processingError}</div>}<div className="mt-8 flex items-center gap-4">{ready && <Link href={`/documents/${document.id}`} className={`${buttonBase} bg-forest px-5 py-3 text-paper hover:bg-forest/90`} data-testid="button-open-document-workspace">Open Document Workspace <ArrowRight size={14} /></Link>}{needsAttention && <button type="button" onClick={() => retryMutation.mutate()} disabled={retryMutation.isPending} className={`${buttonBase} bg-forest px-5 py-3 text-paper hover:bg-forest/90`} data-testid="button-retry-processing">{retryMutation.isPending ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />} Try again</button>}</div></div><div className="paper-texture border border-ink/15 bg-card p-6 md:p-8"><div className="mb-8 flex items-center gap-3 border-b border-ink/15 pb-5"><div className="grid h-10 w-9 place-items-center bg-terracotta text-paper"><FileText size={17} /></div><div><p className="font-display text-lg">{document.name}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.12em] text-ink/45">Reading room · {document.status}</p></div></div><ProcessingTimeline status={document.status} /></div></div></AppShell>;
 }
 
 export function DocumentPreview({ document, collapsed, onToggle }: { document: ApiDocument | DocumentRecord; collapsed: boolean; onToggle: () => void }) {

@@ -1,6 +1,6 @@
 import { Collection, ObjectId } from 'mongodb';
 import { getDb } from '../db/connection.js';
-import type { DocumentDocument } from '../models/document.model.js';
+import type { DocumentDocument, DocumentStatus } from '../models/document.model.js';
 import { getRandomAccent } from '../models/document.model.js';
 
 const DOCUMENTS_COLLECTION = 'documents';
@@ -78,6 +78,63 @@ export async function createDocument(input: CreateDocumentInput): Promise<Docume
     _id: result.insertedId,
     ...doc,
   };
+}
+
+/**
+ * Updates just the processing status (and optional error message) for a document.
+ * Used when text extraction (or, in a later milestone, AI analysis) succeeds
+ * or fails, to move a document between Processing / Ready / Needs attention.
+ */
+export async function updateDocumentStatus(
+  id: string,
+  status: DocumentStatus,
+  processingError?: string
+): Promise<void> {
+  if (!ObjectId.isValid(id)) return;
+  const collection = getDocumentsCollection();
+  await collection.updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        status,
+        updatedAt: new Date(),
+        ...(processingError !== undefined ? { processingError } : {}),
+      },
+      ...(status !== 'Needs attention' ? { $unset: { processingError: '' } } : {}),
+    }
+  );
+}
+
+export interface ExtractionResultInput {
+  extractedText: string;
+  pages: number;
+  words: number;
+}
+
+/**
+ * Persists successfully extracted text and derived metadata (page/word count)
+ * for a document. This intentionally does NOT change the document's status
+ * to 'Ready' -- extraction is only the first stage of the pipeline. The
+ * document stays in 'Processing' until AI analysis (a later milestone)
+ * completes, at which point it becomes 'Ready'. This keeps the "no document
+ * appears Ready before it's actually ready" guarantee intact even though
+ * analysis isn't wired up yet.
+ */
+export async function saveExtractionResult(id: string, input: ExtractionResultInput): Promise<void> {
+  if (!ObjectId.isValid(id)) return;
+  const collection = getDocumentsCollection();
+  await collection.updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        extractedText: input.extractedText,
+        pages: input.pages,
+        words: input.words,
+        updatedAt: new Date(),
+      },
+      $unset: { processingError: '' },
+    }
+  );
 }
 
 /**

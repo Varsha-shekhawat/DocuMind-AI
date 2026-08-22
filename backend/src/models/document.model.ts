@@ -32,6 +32,7 @@ export interface DocumentDocument {
   mainIdeas: MainIdea[];
   suggestions: string[];
   accent: DocumentAccent;
+  processingError?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +54,7 @@ export interface SafeDocument {
   mainIdeas: MainIdea[];
   suggestions: string[];
   accent: DocumentAccent;
+  processingError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +89,7 @@ export function toSafeDocument(doc: DocumentDocument): SafeDocument {
     mainIdeas: doc.mainIdeas || [],
     suggestions: doc.suggestions || [],
     accent: doc.accent || 'ochre',
+    processingError: doc.processingError,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };
