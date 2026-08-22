@@ -1,9 +1,10 @@
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { LoaderCircle } from 'lucide-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { AuthProvider } from '@/lib/auth-context';
+import { AuthProvider, useAuth } from '@/lib/auth-context';
 import {
   DocumentsPage,
   ForgotPasswordPage,
@@ -21,6 +22,39 @@ import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const queryClient = new QueryClient();
 
+/**
+ * Gates a route behind an authenticated session.
+ *
+ * While the session check (/api/auth/me) is in flight, we show a neutral
+ * loading state rather than redirecting -- redirecting before we know the
+ * answer would bounce a legitimately logged-in user back to /login on every
+ * page refresh. Once resolved, unauthenticated visitors are redirected to
+ * /login with a `from` query param so the login page can send them back
+ * afterward.
+ */
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-paper text-sm text-ink/55">
+        <div className="flex items-center gap-3">
+          <LoaderCircle size={18} className="animate-spin text-terracotta" />
+          Checking your session...
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    setLocation(`/login?from=${encodeURIComponent(location)}`);
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <RoutedErrorBoundary>
@@ -30,15 +64,21 @@ function Router() {
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/forgot-password" component={ForgotPasswordPage} />
-        <Route path="/documents" component={DocumentsPage} />
-        <Route path="/documents/new" component={NewDocumentPage} />
+        <Route path="/documents">
+          <ProtectedRoute><DocumentsPage /></ProtectedRoute>
+        </Route>
+        <Route path="/documents/new">
+          <ProtectedRoute><NewDocumentPage /></ProtectedRoute>
+        </Route>
         <Route path="/documents/:id/processing">
-          {(params) => <ProcessingPage id={params.id} />}
+          {(params) => <ProtectedRoute><ProcessingPage id={params.id} /></ProtectedRoute>}
         </Route>
         <Route path="/documents/:id">
-          {(params) => <ResultsPage id={params.id} />}
+          {(params) => <ProtectedRoute><ResultsPage id={params.id} /></ProtectedRoute>}
         </Route>
-        <Route path="/settings" component={SettingsPage} />
+        <Route path="/settings">
+          <ProtectedRoute><SettingsPage /></ProtectedRoute>
+        </Route>
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

@@ -73,10 +73,19 @@ export async function register(req: Request, res: Response): Promise<void> {
 
   const safeUser = toSafeUser(newUser);
 
+  // The token is also returned in the body (not just the HttpOnly cookie) so the
+  // frontend can hold a short-lived, in-memory Authorization header fallback.
+  // This does not weaken security: the cookie remains HttpOnly and is still the
+  // primary/persistent mechanism. The fallback only covers same-tab requests
+  // for the lifetime of the page, and exists because some cross-origin
+  // deployments (or browsers with strict third-party cookie policies) will
+  // silently refuse to attach the cookie to a subsequent fetch even though
+  // login itself succeeded.
   res.status(201).json({
     success: true,
     message: 'User registered successfully.',
     user: safeUser,
+    token,
   });
 }
 
@@ -132,10 +141,13 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const safeUser = toSafeUser(user);
 
+  // See the comment in register() above: token is duplicated into the body
+  // as a same-tab, in-memory fallback for the Authorization header.
   res.status(200).json({
     success: true,
     message: 'Logged in successfully.',
     user: safeUser,
+    token,
   });
 }
 
