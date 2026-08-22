@@ -183,6 +183,17 @@ export async function getDocumentById(req: Request, res: Response): Promise<void
  * Scoped to extraction only for now -- once AI analysis exists, this will
  * also re-trigger analysis, but the route/contract stays the same.
  */
+/**
+ * Handle re-running the pipeline on a document stuck in 'Needs attention':
+ * POST /api/documents/:id/retry
+ *
+ * Stage-aware: if extraction already succeeded previously (extractedText is
+ * present) but a later stage failed, retry resumes from 'analyzing' instead
+ * of wastefully re-extracting the file. Today, extraction is the only stage
+ * that can fail, so this branch is a no-op placeholder until AI analysis (a
+ * later milestone) adds a stage that actually consumes 'analyzing' -- but
+ * the retry contract already supports it without another endpoint change.
+ */
 export async function retryDocumentProcessing(req: Request, res: Response): Promise<void> {
   if (!req.user || !req.user.id) {
     res.status(401).json({
@@ -213,7 +224,18 @@ export async function retryDocumentProcessing(req: Request, res: Response): Prom
       return;
     }
 
-    await updateDocumentStatus(id, 'Processing');
+    const alreadyExtracted = Boolean(document.extractedText && document.extractedText.trim().length > 0);
+
+    if (alreadyExtracted) {
+      // Extraction already succeeded; resume at the analyzing stage.
+      // TODO(Milestone 5): trigger the AI analysis runner here instead of
+      // leaving the document parked at 'analyzing'.
+      await updateDocumentStatus(id, 'Processing', undefined, 'analyzing');
+      res.status(200).json({ success: true, message: 'Reprocessing resumed from analysis.' });
+      return;
+    }
+
+    await updateDocumentStatus(id, 'Processing', undefined, 'uploaded');
 
     res.status(200).json({
       success: true,
