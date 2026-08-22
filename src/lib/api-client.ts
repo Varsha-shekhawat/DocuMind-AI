@@ -47,11 +47,30 @@ export interface ApiResponse<T = unknown> {
   user?: User;
   document?: ApiDocument;
   documents?: ApiDocument[];
+  token?: string;
   error?: {
     message: string;
     statusCode: number;
     details?: unknown;
   };
+}
+
+/**
+ * In-memory (never persisted) fallback auth token.
+ *
+ * The backend's HttpOnly cookie is the primary, persistent session mechanism.
+ * This module-level variable exists purely as a same-tab fallback: some
+ * cross-origin deployments and browsers with strict third-party cookie
+ * policies will silently refuse to attach the cookie to a fetch request even
+ * though login just succeeded. Holding the token in memory (never
+ * localStorage/sessionStorage) lets those same-tab requests still succeed
+ * without weakening security -- it disappears on refresh, at which point the
+ * app falls back to the cookie via /api/auth/me as usual.
+ */
+let inMemoryToken: string | null = null;
+
+export function setInMemoryToken(token: string | null): void {
+  inMemoryToken = token;
 }
 
 export class ApiError extends Error {
@@ -79,6 +98,11 @@ export async function apiRequest<T = unknown>(
   // Only set Content-Type to JSON if not sending FormData
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
+  }
+  // Same-tab fallback: attach the in-memory token so the request still
+  // authenticates even if the browser declined to send the HttpOnly cookie.
+  if (!headers.has('Authorization') && inMemoryToken) {
+    headers.set('Authorization', `Bearer ${inMemoryToken}`);
   }
 
   const response = await fetch(url, {
@@ -111,17 +135,21 @@ export async function apiRequest<T = unknown>(
  */
 export const authApi = {
   async register(data: { name: string; email: string; password: string }): Promise<{ user: User }> {
-    return apiRequest<{ user: User; message: string }>('/api/auth/register', {
+    const result = await apiRequest<{ user: User; message: string; token?: string }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    setInMemoryToken(result.token ?? null);
+    return result;
   },
 
   async login(data: { email: string; password: string }): Promise<{ user: User }> {
-    return apiRequest<{ user: User; message: string }>('/api/auth/login', {
+    const result = await apiRequest<{ user: User; message: string; token?: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    setInMemoryToken(result.token ?? null);
+    return result;
   },
 
   async getMe(): Promise<{ user: User }> {
@@ -131,9 +159,11 @@ export const authApi = {
   },
 
   async logout(): Promise<{ success: boolean; message: string }> {
-    return apiRequest<{ success: boolean; message: string }>('/api/auth/logout', {
+    const result = await apiRequest<{ success: boolean; message: string }>('/api/auth/logout', {
       method: 'POST',
     });
+    setInMemoryToken(null);
+    return result;
   },
 };
 

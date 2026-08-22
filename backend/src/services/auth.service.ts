@@ -55,11 +55,10 @@ export function verifyToken(token: string): JwtPayload | null {
  * Returns standardized cookie options for the HTTP-only auth token.
  */
 export function getAuthCookieOptions(): CookieOptions {
-  const isProduction = config.nodeEnv === 'production';
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: config.cookieSecure,
+    sameSite: config.cookieSameSite,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
     path: '/',
   };
