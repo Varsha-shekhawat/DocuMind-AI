@@ -22,6 +22,7 @@ import {
   HelpCircle,
   Highlighter,
   History,
+  Image as ImageIcon,
   KeyRound,
   Lightbulb,
   List,
@@ -813,12 +814,71 @@ export function DocumentsPage() {
 
 export function UploadZone({ onFile }: { onFile: (file: File) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) onFile(file); };
-  return <div onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) onFile(file); }} onClick={() => inputRef.current?.click()} className="group cursor-pointer border border-dashed border-ink/25 bg-[#e9dec6]/45 px-6 py-14 text-center transition-colors hover:border-terracotta hover:bg-[#e9dec6]/75" data-testid="upload-zone"><input ref={inputRef} type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleChange} className="hidden" data-testid="input-upload-file" /><div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-ink/15 bg-paper text-terracotta transition-transform group-hover:-translate-y-1"><Upload size={21} strokeWidth={1.5} /></div><h2 className="mt-5 font-display text-2xl">Drop your document here</h2><p className="mt-2 text-sm text-ink/55">or click to browse from your computer</p><p className="mt-5 font-mono-ui text-[9px] uppercase tracking-[.13em] text-ink/40">PDF, DOCX, or TXT · up to 25 MB</p></div>;
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) onFile(file);
+  };
+  return (
+    <div
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        const file = event.dataTransfer.files?.[0];
+        if (file) onFile(file);
+      }}
+      onClick={() => inputRef.current?.click()}
+      className="group cursor-pointer border border-dashed border-ink/25 bg-[#e9dec6]/45 px-6 py-14 text-center transition-colors hover:border-terracotta hover:bg-[#e9dec6]/75"
+      data-testid="upload-zone"
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+        onChange={handleChange}
+        className="hidden"
+        data-testid="input-upload-file"
+      />
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-ink/15 bg-paper text-terracotta transition-transform group-hover:-translate-y-1">
+        <Upload size={21} strokeWidth={1.5} />
+      </div>
+      <h2 className="mt-5 font-display text-2xl">Drop your document or image here</h2>
+      <p className="mt-2 text-sm text-ink/55">or click to browse from your computer</p>
+      <p className="mt-5 font-mono-ui text-[9px] uppercase tracking-[.13em] text-ink/40">
+        PDF, DOCX, TXT, PNG, or JPG (OCR) · up to 25 MB
+      </p>
+    </div>
+  );
 }
 
 export function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
-  return <div className="flex items-center justify-between border border-ink/15 bg-card p-4"><div className="flex min-w-0 items-center gap-3"><div className="grid h-10 w-9 shrink-0 place-items-center bg-terracotta text-paper"><FileText size={17} /></div><div className="min-w-0"><p className="truncate text-sm font-semibold">{file.name}</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.1em] text-ink/45">{(file.size / 1024 / 1024).toFixed(2)} MB · ready to read</p></div></div><button type="button" onClick={onRemove} className="grid h-8 w-8 place-items-center rounded-md text-ink/45 hover:bg-ink/5 hover:text-terracotta" aria-label="Remove file" data-testid="button-remove-file"><X size={16} /></button></div>;
+  const isImage =
+    file.type.startsWith('image/') ||
+    ['.png', '.jpg', '.jpeg', '.webp'].some((ext) => file.name.toLowerCase().endsWith(ext));
+
+  return (
+    <div className="flex items-center justify-between border border-ink/15 bg-card p-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="grid h-10 w-9 shrink-0 place-items-center bg-terracotta text-paper">
+          {isImage ? <ImageIcon size={17} /> : <FileText size={17} />}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{file.name}</p>
+          <p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.1em] text-ink/45">
+            {(file.size / 1024 / 1024).toFixed(2)} MB · {isImage ? 'image (OCR ready)' : 'ready to read'}
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="grid h-8 w-8 place-items-center rounded-md text-ink/45 hover:bg-ink/5 hover:text-terracotta"
+        aria-label="Remove file"
+        data-testid="button-remove-file"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
 }
 
 export function NewDocumentPage() {

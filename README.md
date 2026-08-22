@@ -37,7 +37,7 @@ DocuMind AI streamlines this workflow through:
 
 - **Secure Authentication**: User registration and login protected by cryptographically hashed passwords (`bcryptjs`) and stateless session tokens stored in secure, `HttpOnly` JWT cookies.
 - **Protected Document Library**: Private document workspace isolating each user's uploaded library with real-time status filtering and search.
-- **Native Document Extraction**: Real text parsing for PDF (`pdf-parse`), DOCX (`mammoth`), and plain text (`.txt`) files without third-party data scraping.
+- **Native Document Extraction & OCR**: Real text parsing for PDF (`pdf-parse`), DOCX (`mammoth`), plain text (`.txt`), and image files (`.png`, `.jpg`, `.jpeg`, `.webp`) via local Optical Character Recognition (`tesseract.js`).
 - **Asynchronous Processing Pipeline**: Multi-stage processing lifecycle (`uploaded` &rarr; `extracting` &rarr; `analyzing` &rarr; `ready`) with live polling and visual progress indicators.
 - **AI-Powered Structured Analysis**: High-fidelity document synthesis generated via Anthropic Claude utilizing strict JSON schema tool calling.
 - **Multi-Tier Summary Variants**: Instant switching between **Short** (executive brief), **Medium** (core premise and findings), and **Long** (comprehensive synthesis) summaries.
@@ -72,7 +72,7 @@ DocuMind AI streamlines this workflow through:
 - **AI Engine**: [Anthropic Claude SDK](https://github.com/anthropics/anthropic-sdk-typescript) (`@anthropic-ai/sdk`)
 - **Authentication**: [JSON Web Tokens](https://github.com/auth0/node-jsonwebtoken) (`jsonwebtoken`), [Bcrypt.js](https://github.com/dcodeIO/bcrypt.js)
 - **File Ingestion**: [Multer](https://github.com/expressjs/multer)
-- **Text Extraction**: [pdf-parse](https://www.npmjs.com/package/pdf-parse), [mammoth](https://www.npmjs.com/package/mammoth)
+- **Text Extraction & OCR**: [pdf-parse](https://www.npmjs.com/package/pdf-parse), [mammoth](https://www.npmjs.com/package/mammoth), [tesseract.js](https://github.com/naptha/tesseract.js)
 - **Security & Utilities**: `cookie-parser`, `cors`, `dotenv`, `zod`
 
 ---
@@ -101,7 +101,7 @@ Express API Layer (Routes & Middleware)
 ### Document Processing Lifecycle
 
 ```
-[User Upload] (PDF / DOCX / TXT)
+[User Upload] (PDF / DOCX / TXT / PNG / JPG)
       │
       ▼
 [Server Validation] (Size <= 25MB, MIME & Extension Checked)
@@ -110,7 +110,7 @@ Express API Layer (Routes & Middleware)
 [Storage & Initial Record] (Status: "Processing", Stage: "uploaded")
       │
       ▼
-[Text Extraction] (pdf-parse / mammoth)
+[Text Extraction / OCR] (pdf-parse / mammoth / tesseract.js)
       ├── Error ──► Status: "Needs attention", Stage: "failed" (One-click retry available)
       └── Success ─► (Extracted text saved, Stage: "extracting" ──► "analyzing")
             │
@@ -319,7 +319,6 @@ npm run build        # Compiles backend TypeScript to dist/
 
 ## Future Improvements
 
-- **Image Document OCR**: Support for scanned documents and image formats (PNG, JPG, WEBP) using optical character recognition.
 - **Streaming Responses**: Token-by-token streaming for conversational AI Q&A interactions.
 - **Direct Citation Highlights**: Interactive UI links that highlight the corresponding paragraph within the document preview when clicking citation excerpts.
 - **Cross-Document Synthesis**: Ability to select multiple documents and generate thematic comparative analyses.

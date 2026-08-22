@@ -13,14 +13,27 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 // 25 Megabytes in bytes
 export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
-const ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.txt']);
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.txt',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+]);
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/plain',
-  'application/octet-stream', // Fallback for some OS/browser docx/doc attachments
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'application/octet-stream', // Fallback for some OS/browser attachments
 ]);
 
 const storage = multer.diskStorage({
@@ -38,12 +51,17 @@ function fileFilter(_req: Request, file: Express.Multer.File, cb: FileFilterCall
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    cb(new Error(`Unsupported file type: "${ext}". Please upload a PDF, DOC, DOCX, or TXT file.`));
+    cb(new Error(`Unsupported file type: "${ext}". Please upload a PDF, DOCX, TXT, PNG, or JPG file.`));
     return;
   }
 
-  if (file.mimetype && !ALLOWED_MIME_TYPES.has(file.mimetype) && !file.mimetype.startsWith('text/')) {
-    cb(new Error(`Unsupported MIME type: "${file.mimetype}". Please upload a valid document file.`));
+  if (
+    file.mimetype &&
+    !ALLOWED_MIME_TYPES.has(file.mimetype) &&
+    !file.mimetype.startsWith('text/') &&
+    !file.mimetype.startsWith('image/')
+  ) {
+    cb(new Error(`Unsupported MIME type: "${file.mimetype}". Please upload a valid document or image file.`));
     return;
   }
 
