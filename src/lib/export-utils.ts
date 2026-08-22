@@ -1,25 +1,33 @@
-import type { ApiDocument } from './api-client';
+import type { ApiDocument, PublicSharedDocument } from './api-client';
 import type { DocumentRecord } from '@/data/mock-data';
 
-type ExportableDocument = ApiDocument | DocumentRecord;
+export type ExportableDocument = ApiDocument | DocumentRecord | PublicSharedDocument;
 
 /**
  * Builds the Markdown representation of an analyzed document synthesis.
  */
 export function generateMarkdown(doc: ExportableDocument): string {
-  const cleanTitle = doc.name.replace(/\.[^/.]+$/, '');
+  const cleanTitle =
+    'title' in doc && doc.title
+      ? doc.title
+      : 'name' in doc
+      ? doc.name.replace(/\.[^/.]+$/, '')
+      : 'Document';
+
   const dateStr =
-    'createdAt' in doc && doc.createdAt
+    'date' in doc && doc.date
+      ? doc.date
+      : 'createdAt' in doc && doc.createdAt
       ? new Date(doc.createdAt).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
         })
-      : ('date' in doc && doc.date) || new Date().toLocaleDateString('en-US');
+      : new Date().toLocaleDateString('en-US');
 
   const variants = 'summaryVariants' in doc ? doc.summaryVariants : undefined;
   const shortSummary = variants?.short?.trim() || '';
-  const mediumSummary = variants?.medium?.trim() || doc.summary?.trim() || doc.description?.trim() || '';
+  const mediumSummary = variants?.medium?.trim() || doc.summary?.trim() || ('description' in doc ? doc.description?.trim() : '') || '';
   const longSummary = variants?.long?.trim() || '';
 
   let md = `# ${cleanTitle}\n\n`;
@@ -89,7 +97,8 @@ export function generateMarkdown(doc: ExportableDocument): string {
  */
 export function exportToMarkdown(doc: ExportableDocument): void {
   const markdown = generateMarkdown(doc);
-  const cleanFileName = doc.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const rawName = 'title' in doc && doc.title ? doc.title : 'name' in doc ? doc.name : 'document';
+  const cleanFileName = rawName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
   const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
 
@@ -106,19 +115,31 @@ export function exportToMarkdown(doc: ExportableDocument): void {
  * Opens a dedicated, styled print window formatted specifically for clean PDF export.
  */
 export function exportToPdf(doc: ExportableDocument): void {
-  const cleanTitle = doc.name.replace(/\.[^/.]+$/, '');
+  const cleanTitle =
+    'title' in doc && doc.title
+      ? doc.title
+      : 'name' in doc
+      ? doc.name.replace(/\.[^/.]+$/, '')
+      : 'Document';
+
   const dateStr =
-    'createdAt' in doc && doc.createdAt
+    'date' in doc && doc.date
+      ? doc.date
+      : 'createdAt' in doc && doc.createdAt
       ? new Date(doc.createdAt).toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
         })
-      : ('date' in doc && doc.date) || new Date().toLocaleDateString('en-US');
+      : new Date().toLocaleDateString('en-US');
 
   const variants = 'summaryVariants' in doc ? doc.summaryVariants : undefined;
   const shortSummary = variants?.short?.trim() || '';
-  const mediumSummary = variants?.medium?.trim() || doc.summary?.trim() || doc.description?.trim() || '';
+  const mediumSummary =
+    variants?.medium?.trim() ||
+    doc.summary?.trim() ||
+    ('description' in doc ? doc.description?.trim() : '') ||
+    '';
   const longSummary = variants?.long?.trim() || '';
   const notes = 'notes' in doc ? doc.notes : undefined;
 

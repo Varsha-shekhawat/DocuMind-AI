@@ -14,9 +14,11 @@ import {
   CircleHelp,
   Clock3,
   Copy,
+  ExternalLink,
   FileText,
   Filter,
   FolderOpen,
+  Globe,
   HelpCircle,
   Highlighter,
   History,
@@ -24,6 +26,7 @@ import {
   Lightbulb,
   List,
   LoaderCircle,
+  Lock,
   LogOut,
   Menu,
   MoreHorizontal,
@@ -45,7 +48,16 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createMockDocument, getDocument, mockDocuments, type DocumentRecord, type DocumentStatus } from '@/data/mock-data';
 import { useAuth } from '@/lib/auth-context';
-import { documentsApi, type ApiDocument, type DocumentStage, type ApiNote, type DocumentAccent } from '@/lib/api-client';
+import {
+  documentsApi,
+  sharedApi,
+  type ApiDocument,
+  type DocumentStage,
+  type ApiNote,
+  type DocumentAccent,
+  type ApiDocumentSharing,
+  type PublicSharedDocument,
+} from '@/lib/api-client';
 import { exportToMarkdown, exportToPdf } from '@/lib/export-utils';
 
 const buttonBase = 'inline-flex items-center justify-center gap-2 rounded-md text-sm font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50';
@@ -1891,14 +1903,42 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [shared, setShared] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [presetNoteExcerpt, setPresetNoteExcerpt] = useState<string | undefined>(undefined);
 
-  const handleShare = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
-      setShared(true);
-      window.setTimeout(() => setShared(false), 1500);
+  const queryClient = useQueryClient();
+
+  const [sharingData, setSharingData] = useState<ApiDocumentSharing | undefined>(
+    'sharing' in document ? document.sharing : undefined
+  );
+
+  const enableShareMutation = useMutation({
+    mutationFn: () => documentsApi.enableShare(document.id),
+    onSuccess: (data) => {
+      setSharingData(data.sharing);
+      queryClient.invalidateQueries({ queryKey: ['document', document.id] });
+    },
+  });
+
+  const disableShareMutation = useMutation({
+    mutationFn: () => documentsApi.disableShare(document.id),
+    onSuccess: (data) => {
+      setSharingData(data.sharing);
+      queryClient.invalidateQueries({ queryKey: ['document', document.id] });
+    },
+  });
+
+  const shareUrl =
+    sharingData?.isPublic && sharingData.shareToken && typeof window !== 'undefined'
+      ? `${window.location.origin}/shared/${sharingData.shareToken}`
+      : '';
+
+  const copyShareUrl = () => {
+    if (shareUrl) {
+      navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2000);
     }
   };
 
@@ -2002,16 +2042,131 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={handleShare}
-              className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5"
-              title="Share document link"
-              aria-label="Share document"
-              data-testid="button-share-results"
-            >
-              {shared ? <Check size={15} className="text-forest" /> : <Share2 size={15} />}
-            </button>
+
+            {/* Share Popover Menu */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShareOpen(!shareOpen)}
+                className={`grid h-9 w-9 place-items-center rounded-md border transition-colors ${
+                  shareOpen || sharingData?.isPublic
+                    ? 'border-forest bg-forest/10 text-forest'
+                    : 'border-ink/15 text-ink/50 hover:bg-ink/5'
+                }`}
+                title="Share document link"
+                aria-label="Share document"
+                data-testid="button-share-results"
+              >
+                <Share2 size={15} />
+              </button>
+              {shareOpen && (
+                <div
+                  className="absolute right-0 z-30 mt-2 w-80 sm:w-96 rounded-md border border-ink/15 bg-card p-4 shadow-xl text-left"
+                  data-testid="share-modal"
+                >
+                  <div className="flex items-center justify-between border-b border-ink/10 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Globe size={15} className="text-forest" />
+                      <span className="font-display text-base text-ink">Public Sharing</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShareOpen(false)}
+                      className="text-ink/40 hover:text-ink"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  <div className="pt-3 space-y-3 text-xs">
+                    <p className="text-ink/65 leading-5">
+                      Anyone with the public link can read the synthesized summary, key points, and core ideas without needing to log in.
+                    </p>
+
+                    {sharingData?.isPublic && shareUrl ? (
+                      <div className="space-y-3 pt-1">
+                        <div className="rounded border border-forest/20 bg-forest/5 p-2.5">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-mono-ui text-[9px] uppercase tracking-wider text-forest font-semibold flex items-center gap-1">
+                              <CheckCircle2 size={11} /> Link Active
+                            </span>
+                            <a
+                              href={shareUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-forest hover:underline inline-flex items-center gap-1"
+                            >
+                              Open <ExternalLink size={10} />
+                            </a>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              readOnly
+                              value={shareUrl}
+                              className="w-full truncate border border-ink/15 bg-paper px-2 py-1 text-[11px] font-mono outline-none text-ink/80 select-all"
+                              data-testid="input-share-url"
+                            />
+                            <button
+                              type="button"
+                              onClick={copyShareUrl}
+                              className={`${buttonBase} bg-forest px-2.5 py-1 text-[11px] text-paper shrink-0 hover:bg-forest/90`}
+                              data-testid="button-copy-share-url"
+                            >
+                              {shareCopied ? (
+                                <>
+                                  <Check size={12} />
+                                  <span>Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={12} />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] text-ink/45">Private notes & Q&A are hidden</span>
+                          <button
+                            type="button"
+                            disabled={disableShareMutation.isPending}
+                            onClick={() => disableShareMutation.mutate()}
+                            className="text-[11px] text-terracotta hover:underline font-medium"
+                            data-testid="button-disable-share"
+                          >
+                            {disableShareMutation.isPending ? 'Revoking...' : 'Revoke public link'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="pt-2 space-y-3">
+                        <div className="rounded border border-dashed border-ink/20 bg-paper/60 p-3 text-center text-ink/50">
+                          <Lock size={16} className="mx-auto mb-1 text-ink/40" />
+                          <p className="text-[11px]">Sharing is currently disabled.</p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={enableShareMutation.isPending}
+                          onClick={() => enableShareMutation.mutate()}
+                          className={`${buttonBase} w-full bg-forest py-2.5 text-xs text-paper hover:bg-forest/90`}
+                          data-testid="button-enable-share"
+                        >
+                          {enableShareMutation.isPending ? (
+                            <LoaderCircle size={14} className="animate-spin" />
+                          ) : (
+                            <Globe size={14} />
+                          )}
+                          <span>Generate Public Read-Only Link</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -2143,6 +2298,283 @@ export function ResultsPage({ id }: { id?: string }) {
   }
 
   return <AppShell><div className="mb-8 flex items-center justify-between"><Link href="/documents" className="inline-flex items-center gap-2 text-xs font-semibold text-ink/55 hover:text-terracotta" data-testid="link-results-back"><ArrowLeft size={15} /> Back to documents</Link><span className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-forest"><CheckCircle2 size={13} className="mr-1 inline" /> {document.status}</span></div><ResultsWorkspace document={document} /></AppShell>;
+}
+
+export function SharedDocumentPage({ token }: { token?: string }) {
+  const [active, setActive] = useState('Summary');
+  const [length, setLength] = useState<'Short' | 'Medium' | 'Long'>('Medium');
+  const [copied, setCopied] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['shared-document', token],
+    queryFn: () => sharedApi.getByToken(token!),
+    enabled: !!token,
+    retry: 1,
+  });
+
+  const document = data?.document;
+
+  const variants = document?.summaryVariants;
+  const currentSummaryText = useMemo(() => {
+    if (!document) return '';
+    if (variants) {
+      if (length === 'Short' && variants.short) return variants.short;
+      if (length === 'Medium' && variants.medium) return variants.medium;
+      if (length === 'Long' && variants.long) return variants.long;
+    }
+    return document.summary || '';
+  }, [variants, length, document]);
+
+  const copySummary = () => {
+    if (currentSummaryText) {
+      navigator.clipboard.writeText(currentSummaryText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col justify-between p-6">
+        <header className="flex items-center justify-between border-b border-ink/10 pb-4">
+          <Logo />
+          <span className="font-mono-ui text-[9px] uppercase tracking-widest text-ink/40">Shared Reading Room</span>
+        </header>
+        <div className="py-24 text-center text-sm text-ink/55">
+          <LoaderCircle size={28} className="mx-auto mb-3 animate-spin text-terracotta" />
+          Opening shared document synthesis...
+        </div>
+        <footer className="text-center font-mono-ui text-[9px] uppercase tracking-widest text-ink/35">
+          UNFOLD · A quieter way to read
+        </footer>
+      </div>
+    );
+  }
+
+  if (isError || !document) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col justify-between p-6">
+        <header className="flex items-center justify-between border-b border-ink/10 pb-4">
+          <Logo />
+          <Link href="/login" className="text-xs font-semibold text-forest hover:underline">Sign In</Link>
+        </header>
+        <div className="mx-auto max-w-md my-auto py-16 text-center">
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-terracotta/10 text-terracotta">
+            <Lock size={22} strokeWidth={1.5} />
+          </div>
+          <h1 className="font-display text-2xl text-ink">Shared Document Unavailable</h1>
+          <p className="mt-2 text-sm text-ink/60 leading-6">
+            This shared document is no longer available or the link has expired.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link
+              href="/"
+              className={`${buttonBase} bg-forest px-4 py-2 text-xs text-paper hover:bg-forest/90`}
+            >
+              Explore UNFOLD
+            </Link>
+          </div>
+        </div>
+        <footer className="text-center font-mono-ui text-[9px] uppercase tracking-widest text-ink/35">
+          UNFOLD · A quieter way to read
+        </footer>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-paper flex flex-col">
+      {/* Public Header */}
+      <header className="border-b border-ink/15 bg-paper/80 backdrop-blur px-6 py-4">
+        <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Logo />
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-forest/20 bg-forest/5 px-2.5 py-0.5 font-mono-ui text-[9px] uppercase tracking-widest text-forest">
+              <Globe size={10} /> Shared Read-Only Document
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/register"
+              className={`${buttonBase} bg-forest px-3.5 py-2 text-xs text-paper hover:bg-forest/90`}
+            >
+              Create your reading room
+            </Link>
+            <Link
+              href="/login"
+              className="text-xs font-semibold text-ink/60 hover:text-ink hidden sm:inline"
+            >
+              Sign In
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Shared Content */}
+      <main className="flex-1 px-4 py-8 sm:px-8">
+        <div className="mx-auto max-w-[900px] space-y-6">
+          <div className="border border-ink/15 bg-card p-6 sm:p-10 shadow-sm">
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-ink/10 pb-6">
+              <div>
+                <span className="font-mono-ui text-[9px] uppercase tracking-[.15em] text-terracotta">
+                  UNFOLD Document Synthesis
+                </span>
+                <h1 className="mt-2 font-display text-3xl sm:text-4xl text-ink">
+                  {document.title}
+                </h1>
+                <div className="mt-3 flex flex-wrap items-center gap-3 font-mono-ui text-[10px] text-ink/45">
+                  <span>{document.pages} {document.pages === 1 ? 'Page' : 'Pages'}</span>
+                  <span>·</span>
+                  <span>{document.words} Words</span>
+                  <span>·</span>
+                  <span>{document.date}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={copySummary}
+                  className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5"
+                  title="Copy summary"
+                  aria-label="Copy summary"
+                >
+                  {copied ? <Check size={15} className="text-forest" /> : <Copy size={15} />}
+                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setExportOpen(!exportOpen)}
+                    className={`grid h-9 w-9 place-items-center rounded-md border transition-colors ${
+                      exportOpen
+                        ? 'border-forest bg-forest/10 text-forest'
+                        : 'border-ink/15 text-ink/50 hover:bg-ink/5'
+                    }`}
+                    title="Export document"
+                    aria-label="Export document"
+                  >
+                    <ArrowDownToLine size={15} />
+                  </button>
+                  {exportOpen && (
+                    <div className="absolute right-0 z-30 mt-1.5 w-48 rounded border border-ink/15 bg-paper p-1 shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          exportToMarkdown(document);
+                          setExportOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-xs font-medium text-ink/75 hover:bg-ink/5 hover:text-forest"
+                      >
+                        <FileText size={14} className="text-ochre" />
+                        <span>Export Markdown (.md)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          exportToPdf(document);
+                          setExportOpen(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-xs font-medium text-ink/75 hover:bg-ink/5 hover:text-forest"
+                      >
+                        <BookOpen size={14} className="text-terracotta" />
+                        <span>Export PDF / Print</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs for Public Synthesis */}
+            <div className="flex min-w-max gap-6 border-b border-ink/15 px-1" role="tablist">
+              {['Summary', 'Key Points', 'Main Ideas', 'Suggestions'].map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  onClick={() => setActive(item)}
+                  className={`relative pb-3 font-mono-ui text-[10px] uppercase tracking-[.06em] ${
+                    active === item
+                      ? 'text-terracotta after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-terracotta'
+                      : 'text-ink/45 hover:text-ink'
+                  }`}
+                  role="tab"
+                  aria-selected={active === item}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            {/* Content per tab */}
+            <div className="pt-7">
+              {active === 'Summary' && (
+                <div>
+                  <div className="mb-7 flex items-center justify-between gap-4">
+                    <p className="font-display text-xl">Summary</p>
+                    <div className="flex items-center gap-3">
+                      <span className="hidden font-mono-ui text-[9px] uppercase text-ink/40 sm:inline">
+                        Length
+                      </span>
+                      <div className="w-[180px]">
+                        <SummaryLengthControl
+                          value={length}
+                          onChange={(val) => setLength(val as 'Short' | 'Medium' | 'Long')}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="whitespace-pre-line text-[15px] leading-8 text-ink/75">
+                    {currentSummaryText || 'No summary available.'}
+                  </div>
+                </div>
+              )}
+
+              {active === 'Key Points' && (
+                <div>
+                  <p className="mb-6 font-display text-xl">Key Points</p>
+                  {document.keyPoints && document.keyPoints.length > 0 ? (
+                    <KeyPoints points={document.keyPoints} />
+                  ) : (
+                    <p className="text-sm text-ink/50">No key points extracted.</p>
+                  )}
+                </div>
+              )}
+
+              {active === 'Main Ideas' && (
+                <div>
+                  <p className="mb-6 font-display text-xl">Main Ideas</p>
+                  {document.mainIdeas && document.mainIdeas.length > 0 ? (
+                    <MainIdeas ideas={document.mainIdeas} />
+                  ) : (
+                    <p className="text-sm text-ink/50">No main ideas extracted.</p>
+                  )}
+                </div>
+              )}
+
+              {active === 'Suggestions' && (
+                <div>
+                  <p className="mb-6 font-display text-xl">Suggestions for a closer read</p>
+                  {document.suggestions && document.suggestions.length > 0 ? (
+                    <Suggestions suggestions={document.suggestions} />
+                  ) : (
+                    <p className="text-sm text-ink/50">No suggestions available.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer className="border-t border-ink/10 py-6 text-center">
+        <p className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-ink/40">
+          UNFOLD · A quieter way to understand.
+        </p>
+      </footer>
+    </div>
+  );
 }
 
 export function AuthLayout({ children, caption }: { children: ReactNode; caption: string }) {

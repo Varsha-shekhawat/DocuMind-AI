@@ -10,6 +10,9 @@ import {
   updateDocumentNote,
   deleteDocumentNote,
   getDocumentNotes,
+  getDocumentSharingStatus,
+  enableDocumentSharing,
+  disableDocumentSharing,
 } from '../services/document.service.js';
 import { toSafeDocument } from '../models/document.model.js';
 import { removeFileIfExists } from '../middleware/upload.middleware.js';
@@ -715,6 +718,142 @@ export async function deleteNote(req: Request, res: Response): Promise<void> {
     res.status(500).json({
       success: false,
       error: { message: 'Failed to delete note.', statusCode: 500 },
+    });
+  }
+}
+
+/**
+ * Get document sharing status: GET /api/documents/:id/share
+ */
+export async function getShareStatus(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const { id } = req.params;
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  try {
+    const status = await getDocumentSharingStatus(id, req.user.id);
+    if (!status) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Document not found or access denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      sharing: status,
+    });
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to get share status:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to retrieve sharing status.', statusCode: 500 },
+    });
+  }
+}
+
+/**
+ * Enable document public sharing: POST /api/documents/:id/share
+ */
+export async function enableShare(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const { id } = req.params;
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  try {
+    const result = await enableDocumentSharing(id, req.user.id);
+    if (!result) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Document not found or access denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      sharing: result,
+      shareUrl: `/shared/${result.shareToken}`,
+    });
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to enable sharing:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to enable document sharing.', statusCode: 500 },
+    });
+  }
+}
+
+/**
+ * Disable / revoke document public sharing: DELETE /api/documents/:id/share
+ */
+export async function disableShare(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const { id } = req.params;
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  try {
+    const disabled = await disableDocumentSharing(id, req.user.id);
+    if (!disabled) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Document not found or access denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Document sharing revoked successfully.',
+      sharing: {
+        isPublic: false,
+      },
+    });
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to disable sharing:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to revoke document sharing.', statusCode: 500 },
     });
   }
 }

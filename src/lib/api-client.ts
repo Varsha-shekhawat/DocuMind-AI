@@ -30,6 +30,28 @@ export interface ApiNote {
   updatedAt: string;
 }
 
+export interface ApiDocumentSharing {
+  isPublic: boolean;
+  shareToken?: string;
+  sharedAt?: string;
+}
+
+export interface PublicSharedDocument {
+  title: string;
+  originalFileName: string;
+  pages: number;
+  words: string;
+  date: string;
+  status: DocumentStatus;
+  summary: string;
+  summaryVariants: DocumentSummaryVariants;
+  keyPoints: string[];
+  mainIdeas: { title: string; body: string }[];
+  suggestions: string[];
+  accent: DocumentAccent;
+  sharedAt: string;
+}
+
 export interface ApiDocument {
   id: string;
   userId: string;
@@ -48,6 +70,7 @@ export interface ApiDocument {
   mainIdeas: { title: string; body: string }[];
   suggestions: string[];
   notes?: ApiNote[];
+  sharing?: ApiDocumentSharing;
   accent: DocumentAccent;
   processingError?: string;
   createdAt: string;
@@ -268,7 +291,43 @@ export const documentsApi = {
     });
   },
 
+  async getShareStatus(id: string): Promise<{ success: boolean; sharing: ApiDocumentSharing }> {
+    return apiRequest<{ success: boolean; sharing: ApiDocumentSharing }>(`/api/documents/${id}/share`, {
+      method: 'GET',
+    });
+  },
+
+  async enableShare(
+    id: string
+  ): Promise<{ success: boolean; sharing: ApiDocumentSharing; shareUrl: string }> {
+    return apiRequest<{ success: boolean; sharing: ApiDocumentSharing; shareUrl: string }>(
+      `/api/documents/${id}/share`,
+      {
+        method: 'POST',
+      }
+    );
+  },
+
+  async disableShare(
+    id: string
+  ): Promise<{ success: boolean; message: string; sharing: ApiDocumentSharing }> {
+    return apiRequest<{ success: boolean; message: string; sharing: ApiDocumentSharing }>(
+      `/api/documents/${id}/share`,
+      {
+        method: 'DELETE',
+      }
+    );
+  },
+
   getExportUrl(id: string, format: 'markdown' | 'json' = 'markdown'): string {
     return `/api/documents/${id}/export?format=${format}`;
+  },
+};
+
+export const sharedApi = {
+  async getByToken(token: string): Promise<{ success: boolean; document: PublicSharedDocument }> {
+    return apiRequest<{ success: boolean; document: PublicSharedDocument }>(`/api/shared/${token}`, {
+      method: 'GET',
+    });
   },
 };

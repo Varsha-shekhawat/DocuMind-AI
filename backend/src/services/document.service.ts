@@ -10,8 +10,11 @@ import type {
   DocumentNote,
   SafeDocumentNote,
   DocumentAccent,
+  DocumentSharing,
+  SafeDocumentSharing,
+  PublicSharedDocument,
 } from '../models/document.model.js';
-import { getRandomAccent } from '../models/document.model.js';
+import { getRandomAccent, toPublicSharedDocument } from '../models/document.model.js';
 
 const DOCUMENTS_COLLECTION = 'documents';
 
@@ -28,6 +31,10 @@ export async function initDocumentIndexes(): Promise<void> {
     await collection.createIndex(
       { userId: 1, createdAt: -1 },
       { name: 'idx_user_documents_created' }
+    );
+    await collection.createIndex(
+      { 'sharing.shareToken': 1 },
+      { name: 'idx_share_token', sparse: true }
     );
     console.log('[Database] Documents collection indexes verified.');
   } catch (error) {
@@ -435,5 +442,133 @@ export async function getDocumentNotes(
     createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : String(n.createdAt),
     updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : String(n.updatedAt),
   }));
+}
+
+/**
+ * Enables public read-only link sharing for a document.
+ * Generates a cryptographically secure token if one does not already exist.
+ */
+export async function enableDocumentSharing(
+  documentId: string,
+  userId: string
+): Promise<{ shareToken: string; isPublic: boolean; sharedAt: string } | null> {
+  if (!ObjectId.isValid(documentId) || !ObjectId.isValid(userId)) {
+    return null;
+  }
+
+  const collection = getDocumentsCollection();
+  const doc = await collection.findOne({
+    _id: new ObjectId(documentId),
+    userId: new ObjectId(userId),
+  });
+
+  if (!doc) {
+    return null;
+  }
+
+  const now = new Date();
+  const token = doc.sharing?.shareToken || crypto.randomBytes(24).toString('hex');
+
+  await collection.updateOne(
+    { _id: new ObjectId(documentId), userId: new ObjectId(userId) },
+    {
+      $set: {
+        'sharing.isPublic': true,
+        'sharing.shareToken': token,
+        'sharing.sharedAt': now,
+        updatedAt: now,
+      },
+      $unset: {
+        'sharing.revokedAt': '',
+      },
+    }
+  );
+
+  return {
+    shareToken: token,
+    isPublic: true,
+    sharedAt: now.toISOString(),
+  };
+}
+
+/**
+ * Disables / revokes public link sharing for a document.
+ */
+export async function disableDocumentSharing(
+  documentId: string,
+  userId: string
+): Promise<boolean> {
+  if (!ObjectId.isValid(documentId) || !ObjectId.isValid(userId)) {
+    return false;
+  }
+
+  const collection = getDocumentsCollection();
+  const now = new Date();
+
+  const result = await collection.updateOne(
+    { _id: new ObjectId(documentId), userId: new ObjectId(userId) },
+    {
+      $set: {
+        'sharing.isPublic': false,
+        'sharing.revokedAt': now,
+        updatedAt: now,
+      },
+    }
+  );
+
+  return result.matchedCount > 0;
+}
+
+/**
+ * Retrieves current sharing status for a document owned by the user.
+ */
+export async function getDocumentSharingStatus(
+  documentId: string,
+  userId: string
+): Promise<SafeDocumentSharing | null> {
+  if (!ObjectId.isValid(documentId) || !ObjectId.isValid(userId)) {
+    return null;
+  }
+
+  const collection = getDocumentsCollection();
+  const doc = await collection.findOne({
+    _id: new ObjectId(documentId),
+    userId: new ObjectId(userId),
+  });
+
+  if (!doc) {
+    return null;
+  }
+
+  return {
+    isPublic: !!doc.sharing?.isPublic,
+    shareToken: doc.sharing?.shareToken,
+    sharedAt: doc.sharing?.sharedAt ? doc.sharing.sharedAt.toISOString() : undefined,
+  };
+}
+
+/**
+ * Retrieves a document by its public share token if sharing is currently enabled.
+ * Returns only the safe public DTO, sanitized of any private data.
+ */
+export async function getPublicSharedDocument(
+  shareToken: string
+): Promise<PublicSharedDocument | null> {
+  const trimmedToken = (shareToken || '').trim();
+  if (!trimmedToken) {
+    return null;
+  }
+
+  const collection = getDocumentsCollection();
+  const doc = await collection.findOne({
+    'sharing.shareToken': trimmedToken,
+    'sharing.isPublic': true,
+  });
+
+  if (!doc || doc.status === 'Needs attention') {
+    return null;
+  }
+
+  return toPublicSharedDocument(doc);
 }
 

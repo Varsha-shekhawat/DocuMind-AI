@@ -16,6 +16,7 @@ import {
   RegisterPage,
   ResultsPage,
   SettingsPage,
+  SharedDocumentPage,
 } from '@/components/documind';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
@@ -64,6 +65,9 @@ function Router() {
         <Route path="/login" component={LoginPage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/shared/:token">
+          {(params) => <SharedDocumentPage token={params.token} />}
+        </Route>
         <Route path="/documents">
           <ProtectedRoute><DocumentsPage /></ProtectedRoute>
         </Route>
