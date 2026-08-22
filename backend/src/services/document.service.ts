@@ -1,6 +1,6 @@
 import { Collection, ObjectId } from 'mongodb';
 import { getDb } from '../db/connection.js';
-import type { DocumentDocument, DocumentStatus } from '../models/document.model.js';
+import type { DocumentDocument, DocumentStatus, DocumentStage } from '../models/document.model.js';
 import { getRandomAccent } from '../models/document.model.js';
 
 const DOCUMENTS_COLLECTION = 'documents';
@@ -54,6 +54,7 @@ export async function createDocument(input: CreateDocumentInput): Promise<Docume
     mimeType: input.mimeType,
     storagePath: input.storagePath,
     status: 'Processing',
+    stage: 'uploaded',
     pages: input.pages || 1,
     words: input.words || 0,
     description: input.description || 'Document uploaded and ready for processing.',
@@ -81,14 +82,16 @@ export async function createDocument(input: CreateDocumentInput): Promise<Docume
 }
 
 /**
- * Updates just the processing status (and optional error message) for a document.
- * Used when text extraction (or, in a later milestone, AI analysis) succeeds
- * or fails, to move a document between Processing / Ready / Needs attention.
+ * Updates just the processing status (and optional stage/error message) for
+ * a document. Used at each pipeline transition -- moving into 'extracting',
+ * into 'analyzing' (via saveExtractionResult below), or into a terminal
+ * 'Ready'/'Needs attention' state.
  */
 export async function updateDocumentStatus(
   id: string,
   status: DocumentStatus,
-  processingError?: string
+  processingError?: string,
+  stage?: DocumentStage
 ): Promise<void> {
   if (!ObjectId.isValid(id)) return;
   const collection = getDocumentsCollection();
@@ -98,10 +101,25 @@ export async function updateDocumentStatus(
       $set: {
         status,
         updatedAt: new Date(),
+        ...(stage !== undefined ? { stage } : {}),
         ...(processingError !== undefined ? { processingError } : {}),
       },
       ...(status !== 'Needs attention' ? { $unset: { processingError: '' } } : {}),
     }
+  );
+}
+
+/**
+ * Marks a document as actively in a given pipeline stage without touching
+ * its coarse status (e.g. moving into 'extracting' while status stays
+ * 'Processing'). Lets the Processing page show real, specific progress.
+ */
+export async function markStage(id: string, stage: DocumentStage): Promise<void> {
+  if (!ObjectId.isValid(id)) return;
+  const collection = getDocumentsCollection();
+  await collection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { stage, updatedAt: new Date() } }
   );
 }
 
@@ -113,12 +131,13 @@ export interface ExtractionResultInput {
 
 /**
  * Persists successfully extracted text and derived metadata (page/word count)
- * for a document. This intentionally does NOT change the document's status
- * to 'Ready' -- extraction is only the first stage of the pipeline. The
- * document stays in 'Processing' until AI analysis (a later milestone)
- * completes, at which point it becomes 'Ready'. This keeps the "no document
- * appears Ready before it's actually ready" guarantee intact even though
- * analysis isn't wired up yet.
+ * for a document, and advances its stage to 'analyzing'. This intentionally
+ * does NOT change the document's status to 'Ready' -- extraction is only the
+ * first stage of the pipeline. The document stays in status 'Processing'
+ * (now at stage 'analyzing') until AI analysis (a later milestone) completes,
+ * at which point it becomes 'Ready'. This keeps the "no document appears
+ * Ready before it's actually ready" guarantee intact even though analysis
+ * isn't wired up yet.
  */
 export async function saveExtractionResult(id: string, input: ExtractionResultInput): Promise<void> {
   if (!ObjectId.isValid(id)) return;
@@ -130,6 +149,7 @@ export async function saveExtractionResult(id: string, input: ExtractionResultIn
         extractedText: input.extractedText,
         pages: input.pages,
         words: input.words,
+        stage: 'analyzing',
         updatedAt: new Date(),
       },
       $unset: { processingError: '' },

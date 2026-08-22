@@ -3,6 +3,25 @@ import { ObjectId } from 'mongodb';
 export type DocumentStatus = 'Processing' | 'Ready' | 'Needs attention';
 export type DocumentAccent = 'ochre' | 'terracotta' | 'sage' | 'bluegreen' | 'plum';
 
+/**
+ * Fine-grained pipeline position, independent of the coarse `status` field
+ * that the document library's filters (All/Ready/Processing/Needs attention)
+ * already depend on. `stage` exists purely so the Processing page can show
+ * real, specific progress ("Extracting text..." vs "Analyzing content...")
+ * instead of a single opaque "Processing" blob.
+ *
+ *   uploaded -> extracting -> analyzing -> ready
+ *                   \             \
+ *                    -> failed <--
+ *
+ * 'analyzing' is entered once text extraction succeeds. Nothing currently
+ * advances a document out of 'analyzing' -- that transition is added when
+ * AI analysis is implemented, which will call markStage('ready') /
+ * status 'Ready' on success, or stage 'failed' / status 'Needs attention'
+ * on failure, mirroring exactly how extraction does it today.
+ */
+export type DocumentStage = 'uploaded' | 'extracting' | 'analyzing' | 'ready' | 'failed';
+
 export interface DocumentSummary {
   short: string;
   medium: string;
@@ -23,6 +42,7 @@ export interface DocumentDocument {
   mimeType: string;
   storagePath: string;
   status: DocumentStatus;
+  stage: DocumentStage;
   pages: number;
   words: number;
   description: string;
@@ -45,6 +65,7 @@ export interface SafeDocument {
   fileSize: number;
   mimeType: string;
   status: DocumentStatus;
+  stage: DocumentStage;
   pages: number;
   words: string;
   description: string;
@@ -80,6 +101,7 @@ export function toSafeDocument(doc: DocumentDocument): SafeDocument {
     fileSize: doc.fileSize,
     mimeType: doc.mimeType,
     status: doc.status,
+    stage: doc.stage || (doc.status === 'Ready' ? 'ready' : doc.status === 'Needs attention' ? 'failed' : 'uploaded'),
     pages: doc.pages || 1,
     words: doc.words ? doc.words.toLocaleString() : '—',
     description: doc.description || 'Document uploaded and awaiting reading.',

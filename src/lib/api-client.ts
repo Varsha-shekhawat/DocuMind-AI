@@ -19,6 +19,8 @@ export interface DocumentSummaryVariants {
   long: string;
 }
 
+export type DocumentStage = 'uploaded' | 'extracting' | 'analyzing' | 'ready' | 'failed';
+
 export interface ApiDocument {
   id: string;
   userId: string;
@@ -27,6 +29,7 @@ export interface ApiDocument {
   fileSize: number;
   mimeType: string;
   status: DocumentStatus;
+  stage: DocumentStage;
   pages: number;
   words: string;
   description: string;
