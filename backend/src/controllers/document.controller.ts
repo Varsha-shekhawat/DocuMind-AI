@@ -9,7 +9,7 @@ import {
 } from '../services/document.service.js';
 import { toSafeDocument } from '../models/document.model.js';
 import { removeFileIfExists } from '../middleware/upload.middleware.js';
-import { runTextExtraction } from '../services/extraction-runner.service.js';
+import { runDocumentPipeline, runAiAnalysisPipeline } from '../services/extraction-runner.service.js';
 
 /**
  * Handle document upload: POST /api/documents/upload
@@ -63,12 +63,11 @@ export async function uploadDocument(req: Request, res: Response): Promise<void>
     });
 
     // Fire-and-forget: the response has already been sent with the document
-    // in its initial 'Processing' state. Real text extraction happens
-    // asynchronously and updates extractedText/pages/words on success, or
-    // moves the document to 'Needs attention' with a persisted error on
-    // failure. The document does NOT move to 'Ready' here -- that terminal
-    // transition happens once AI analysis is wired up in a later milestone.
-    void runTextExtraction(document._id.toHexString(), file.path, file.originalname);
+    // in its initial 'Processing' state. Real text extraction and AI analysis
+    // happen asynchronously and update summary/keyPoints/mainIdeas/suggestions
+    // on success (stage -> 'ready', status -> 'Ready'), or move the document
+    // to 'Needs attention' with a persisted error on failure.
+    void runDocumentPipeline(document._id.toHexString(), file.path, file.originalname);
   } catch (error) {
     // Clean up uploaded file if database insertion failed
     await removeFileIfExists(file.path);
@@ -227,11 +226,10 @@ export async function retryDocumentProcessing(req: Request, res: Response): Prom
     const alreadyExtracted = Boolean(document.extractedText && document.extractedText.trim().length > 0);
 
     if (alreadyExtracted) {
-      // Extraction already succeeded; resume at the analyzing stage.
-      // TODO(Milestone 5): trigger the AI analysis runner here instead of
-      // leaving the document parked at 'analyzing'.
+      // Extraction already succeeded; resume directly at the analyzing stage.
       await updateDocumentStatus(id, 'Processing', undefined, 'analyzing');
       res.status(200).json({ success: true, message: 'Reprocessing resumed from analysis.' });
+      void runAiAnalysisPipeline(id, document.extractedText);
       return;
     }
 
@@ -242,7 +240,7 @@ export async function retryDocumentProcessing(req: Request, res: Response): Prom
       message: 'Reprocessing started.',
     });
 
-    void runTextExtraction(id, document.storagePath, document.originalFileName);
+    void runDocumentPipeline(id, document.storagePath, document.originalFileName);
   } catch (error) {
     console.error('[Document Controller Error] Failed to retry extraction:', error);
     res.status(500).json({

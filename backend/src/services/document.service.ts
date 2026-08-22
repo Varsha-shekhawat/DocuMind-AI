@@ -1,6 +1,6 @@
 import { Collection, ObjectId } from 'mongodb';
 import { getDb } from '../db/connection.js';
-import type { DocumentDocument, DocumentStatus, DocumentStage } from '../models/document.model.js';
+import type { DocumentDocument, DocumentStatus, DocumentStage, DocumentSummary, MainIdea } from '../models/document.model.js';
 import { getRandomAccent } from '../models/document.model.js';
 
 const DOCUMENTS_COLLECTION = 'documents';
@@ -150,6 +150,39 @@ export async function saveExtractionResult(id: string, input: ExtractionResultIn
         pages: input.pages,
         words: input.words,
         stage: 'analyzing',
+        updatedAt: new Date(),
+      },
+      $unset: { processingError: '' },
+    }
+  );
+}
+
+export interface AnalysisResultInput {
+  summary: DocumentSummary;
+  keyPoints: string[];
+  mainIdeas: MainIdea[];
+  suggestions: string[];
+}
+
+/**
+ * Persists successfully generated AI analysis results (summary variants,
+ * key points, main ideas, and suggestions) and advances the document's
+ * stage to 'ready' and status to 'Ready'.
+ */
+export async function saveAnalysisResult(id: string, input: AnalysisResultInput): Promise<void> {
+  if (!ObjectId.isValid(id)) return;
+  const collection = getDocumentsCollection();
+  await collection.updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        summary: input.summary,
+        description: input.summary.short || input.summary.medium || 'Document processed and ready for reading.',
+        keyPoints: input.keyPoints,
+        mainIdeas: input.mainIdeas,
+        suggestions: input.suggestions,
+        stage: 'ready',
+        status: 'Ready',
         updatedAt: new Date(),
       },
       $unset: { processingError: '' },
