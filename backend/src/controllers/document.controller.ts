@@ -6,6 +6,10 @@ import {
   getDocumentByIdAndUser,
   deleteDocumentByIdAndUser,
   updateDocumentStatus,
+  addDocumentNote,
+  updateDocumentNote,
+  deleteDocumentNote,
+  getDocumentNotes,
 } from '../services/document.service.js';
 import { toSafeDocument } from '../models/document.model.js';
 import { removeFileIfExists } from '../middleware/upload.middleware.js';
@@ -492,5 +496,228 @@ export async function exportDocument(req: Request, res: Response): Promise<void>
     });
   }
 }
+
+/**
+ * Handle retrieving notes for a document:
+ * GET /api/documents/:id/notes
+ */
+export async function getNotes(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const rawId = req.params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  try {
+    const notes = await getDocumentNotes(id, req.user.id);
+    if (notes === null) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Document not found or permission denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      notes,
+    });
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to fetch notes:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to retrieve document notes.', statusCode: 500 },
+    });
+  }
+}
+
+/**
+ * Handle adding a new note to a document:
+ * POST /api/documents/:id/notes
+ */
+export async function addNote(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const rawId = req.params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  const content = typeof req.body.content === 'string' ? req.body.content.trim() : '';
+  if (!content) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Note content cannot be empty.', statusCode: 400 },
+    });
+    return;
+  }
+
+  const excerpt = typeof req.body.excerpt === 'string' ? req.body.excerpt.trim() : undefined;
+  const color = ['ochre', 'terracotta', 'sage', 'bluegreen', 'plum'].includes(req.body.color)
+    ? req.body.color
+    : 'ochre';
+
+  try {
+    const createdNote = await addDocumentNote(id, req.user.id, {
+      content,
+      excerpt,
+      color,
+    });
+
+    if (!createdNote) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Document not found or permission denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(201).json({
+      success: true,
+      note: createdNote,
+    });
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to add note:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to save note.', statusCode: 500 },
+    });
+  }
+}
+
+/**
+ * Handle updating an existing note:
+ * PATCH /api/documents/:id/notes/:noteId
+ */
+export async function updateNote(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const rawId = req.params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+  const rawNoteId = req.params.noteId;
+  const noteId = Array.isArray(rawNoteId) ? rawNoteId[0] : rawNoteId;
+
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id) || !noteId) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document or note ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  const content = typeof req.body.content === 'string' ? req.body.content.trim() : undefined;
+  const excerpt = typeof req.body.excerpt === 'string' ? req.body.excerpt.trim() : undefined;
+  const color = ['ochre', 'terracotta', 'sage', 'bluegreen', 'plum'].includes(req.body.color)
+    ? req.body.color
+    : undefined;
+
+  try {
+    const updatedNote = await updateDocumentNote(id, req.user.id, noteId, {
+      content,
+      excerpt,
+      color,
+    });
+
+    if (!updatedNote) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Note or document not found or permission denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      note: updatedNote,
+    });
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to update note:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to update note.', statusCode: 500 },
+    });
+  }
+}
+
+/**
+ * Handle deleting a note:
+ * DELETE /api/documents/:id/notes/:noteId
+ */
+export async function deleteNote(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const rawId = req.params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+  const rawNoteId = req.params.noteId;
+  const noteId = Array.isArray(rawNoteId) ? rawNoteId[0] : rawNoteId;
+
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id) || !noteId) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document or note ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  try {
+    const deleted = await deleteDocumentNote(id, req.user.id, noteId);
+    if (!deleted) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Note not found or permission denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Note deleted successfully.',
+    });
+  } catch (error) {
+    console.error('[Document Controller Error] Failed to delete note:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to delete note.', statusCode: 500 },
+    });
+  }
+}
+
 
 

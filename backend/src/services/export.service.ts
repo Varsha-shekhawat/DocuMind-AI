@@ -64,6 +64,21 @@ export function generateMarkdownExport(doc: DocumentDocument): string {
     md += `\n`;
   }
 
+  // Reader Notes Section
+  if (doc.notes && doc.notes.length > 0) {
+    md += `## 5. Reader Notes & Annotations\n\n`;
+    doc.notes.forEach((note, index) => {
+      const noteDate = note.createdAt
+        ? new Date(note.createdAt).toLocaleDateString('en-US')
+        : '';
+      md += `### Note 0${index + 1}${noteDate ? ` (${noteDate})` : ''}\n\n`;
+      if (note.excerpt) {
+        md += `> *Excerpt:* "${note.excerpt.trim()}"\n\n`;
+      }
+      md += `${note.content.trim()}\n\n`;
+    });
+  }
+
   md += `---\n`;
   md += `*Generated with UNFOLD · A quieter way to understand.*  \n`;
 
