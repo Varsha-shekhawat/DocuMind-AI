@@ -39,7 +39,7 @@ DocuMind AI streamlines this workflow through:
 - **Protected Document Library**: Private document workspace isolating each user's uploaded library with real-time status filtering and search.
 - **Native Document Extraction & OCR**: Real text parsing for PDF (`pdf-parse`), DOCX (`mammoth`), plain text (`.txt`), and image files (`.png`, `.jpg`, `.jpeg`, `.webp`) via local Optical Character Recognition (`tesseract.js`).
 - **Asynchronous Processing Pipeline**: Multi-stage processing lifecycle (`uploaded` &rarr; `extracting` &rarr; `analyzing` &rarr; `ready`) with live polling and visual progress indicators.
-- **AI-Powered Structured Analysis**: High-fidelity document synthesis generated via Anthropic Claude utilizing strict JSON schema tool calling.
+- **AI-Powered Structured Analysis**: High-fidelity document synthesis generated via local, open-source Ollama models (`qwen2.5:3b`) utilizing structured JSON schema output.
 - **Multi-Tier Summary Variants**: Instant switching between **Short** (executive brief), **Medium** (core premise and findings), and **Long** (comprehensive synthesis) summaries.
 - **Key Takeaways & Core Arguments**: Automatically extracted numbered bullet points and thematic arguments paired with conceptual titles and explanatory bodies.
 - **Actionable Insights & Suggestions**: Practical next steps, inquiry questions, and implications surfaced from the text.
@@ -69,7 +69,7 @@ DocuMind AI streamlines this workflow through:
 - **Server Framework**: [Express 4](https://expressjs.com/)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **Database**: [MongoDB](https://www.mongodb.com/) (Native Node.js Driver `mongodb` v6)
-- **AI Engine**: [Anthropic Claude SDK](https://github.com/anthropics/anthropic-sdk-typescript) (`@anthropic-ai/sdk`)
+- **AI Engine**: [Ollama](https://ollama.com/) (Local HTTP API, e.g. `qwen2.5:3b`)
 - **Authentication**: [JSON Web Tokens](https://github.com/auth0/node-jsonwebtoken) (`jsonwebtoken`), [Bcrypt.js](https://github.com/dcodeIO/bcrypt.js)
 - **File Ingestion**: [Multer](https://github.com/expressjs/multer)
 - **Text Extraction & OCR**: [pdf-parse](https://www.npmjs.com/package/pdf-parse), [mammoth](https://www.npmjs.com/package/mammoth), [tesseract.js](https://github.com/naptha/tesseract.js)
@@ -95,7 +95,7 @@ Express API Layer (Routes & Middleware)
     │
     ├──► MongoDB Database (Users, Documents, Notes, Preferences)
     │
-    └──► Anthropic Claude API (Structured Analysis & Document Q&A)
+    └──► Local Ollama Model (Structured Analysis & Document Q&A)
 ```
 
 ### Document Processing Lifecycle
@@ -115,7 +115,7 @@ Express API Layer (Routes & Middleware)
       └── Success ─► (Extracted text saved, Stage: "extracting" ──► "analyzing")
             │
             ▼
-      [Anthropic Claude Analysis] (System Prompt + Tool Calling Schema)
+      [Ollama Local Analysis] (System Prompt + JSON Schema)
             ├── Error ──► Status: "Needs attention", Stage: "failed"
             └── Success ─► Status: "Ready", Stage: "ready"
                   │
@@ -135,7 +135,7 @@ Express API Layer (Routes & Middleware)
 [Context Retrieval] (Full text or keyword-ranked paragraphs for large texts)
       │
       ▼
-[Anthropic Claude Execution] (Strict system instructions + record_document_answer tool)
+[Ollama Execution] (System prompt guardrails + JSON output schema)
       │
       ▼
 [Grounded Response] (Direct answer + verbatim cited excerpts)
@@ -153,7 +153,7 @@ DocuMind AI adheres to security and data protection best practices:
 - **HttpOnly JWT Session Storage**: Tokens are stored strictly in `HttpOnly`, `SameSite`-configured cookies to mitigate cross-site scripting (XSS) token theft.
 - **Strict Ownership Isolation**: Every document endpoint verifies `userId: new ObjectId(req.user.id)` ensuring users cannot view, edit, delete, or query other users' data.
 - **MongoDB ObjectId Validation**: All incoming route parameters are verified with `ObjectId.isValid()` prior to database queries, preventing BSON casting errors and server crashes.
-- **Isolated AI Credentials**: `ANTHROPIC_API_KEY` is maintained exclusively on the backend server environment and is never bundled into client-side code.
+- **Zero Paid AI / API Dependencies**: All document analysis and Q&A run locally through Ollama (`qwen2.5:3b`); no cloud AI subscription or external API keys are required.
 - **Sanitized Public Sharing DTO**: The public share endpoint (`/api/shared/:token`) executes via a cryptographically random token (`crypto.randomBytes(24)`), returning only sanitized synthesis data (`title`, `summary`, `keyPoints`, `mainIdeas`, `suggestions`) and strictly excluding raw text, personal notes, Q&A dialogues, user IDs, emails, and internal storage paths.
 - **Instant Revocation**: Document owners can revoke share links at any time, immediately invalidating the public token.
 - **HTML Sanitization in Exports**: Dynamic document strings rendered into the print window are escaped to prevent malformed rendering or script execution.
@@ -224,12 +224,12 @@ DocuMind-AI/
         │   ├── healthController.ts
         │   └── shared.controller.ts
         └── services/
-            ├── ai-analysis.service.ts   # Anthropic Claude structured synthesis
-            ├── ai-qa.service.ts         # Anthropic Claude document-grounded Q&A
+            ├── ai-analysis.service.ts   # Ollama local structured synthesis
+            ├── ai-qa.service.ts         # Ollama local document-grounded Q&A
             ├── auth.service.ts          # Password hashing, JWT signing, cookie helper
             ├── document.service.ts      # Document database queries & mutations
             ├── export.service.ts        # Server-side Markdown export builder
-            ├── extraction.service.ts    # File parsing (PDF, DOCX, TXT)
+            ├── extraction.service.ts    # File parsing (PDF, DOCX, TXT) & OCR
             ├── extraction-runner.service.ts # Asynchronous pipeline orchestrator
             └── user.service.ts          # User persistence & preference management
 ```
@@ -251,8 +251,8 @@ Configure the following variables in `backend/.env` (refer to `backend/.env.exam
 | `JWT_EXPIRES_IN` | Optional | `7d` | JWT session token lifespan |
 | `COOKIE_SAMESITE` | Optional | `lax` (dev) / `none` (prod) | Cookie `SameSite` attribute (`lax` \| `none` \| `strict`) |
 | `COOKIE_SECURE` | Optional | `false` (dev) / `true` (prod) | Require HTTPS for session cookie transmission |
-| `ANTHROPIC_API_KEY` | **Required** for AI | — | Anthropic API key for document synthesis & Q&A |
-| `ANTHROPIC_MODEL` | Optional | `claude-3-5-sonnet-20241022` | Claude model identifier used for analysis & Q&A |
+| `OLLAMA_BASE_URL` | Optional | `http://localhost:11434` | Local Ollama HTTP server URL |
+| `OLLAMA_MODEL` | Optional | `qwen2.5:3b` | Local Ollama model identifier |
 
 ---
 
@@ -262,7 +262,7 @@ Configure the following variables in `backend/.env` (refer to `backend/.env.exam
 - **Node.js**: v18.0.0 or later
 - **npm**: v9.0.0 or later
 - **MongoDB**: Local MongoDB instance or free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster
-- **Anthropic API Key**: For AI document synthesis and Q&A features
+- **Ollama**: Free, local AI runtime ([Download Ollama](https://ollama.com/)) with model `qwen2.5:3b` (`ollama pull qwen2.5:3b`)
 
 ### 1. Clone the Repository
 ```bash
@@ -275,7 +275,7 @@ cd DocuMind-AI
 cd backend
 cp .env.example .env
 ```
-Edit `backend/.env` and supply your `MONGODB_URI` and `ANTHROPIC_API_KEY`.
+Supply your `MONGODB_URI` in `backend/.env`. (Default local Ollama URL `http://localhost:11434` and model `qwen2.5:3b` are preconfigured).
 
 ### 3. Install Dependencies & Start Backend
 ```bash
@@ -313,7 +313,7 @@ npm run typecheck    # Verifies backend TypeScript types with zero errors
 npm run build        # Compiles backend TypeScript to dist/
 ```
 
-> **Note on End-to-End Testing**: Full live document processing, Claude AI synthesis, and Q&A interactions require active MongoDB and Anthropic API credentials configured in your environment.
+> **Note on End-to-End Testing**: Full live document processing, local Ollama AI synthesis, and Q&A interactions require active MongoDB and local Ollama (`ollama serve`) running on your machine.
 
 ---
 

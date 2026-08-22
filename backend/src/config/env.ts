@@ -12,7 +12,8 @@ export interface AppConfig {
   jwtExpiresIn: string;
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'none' | 'strict';
-  anthropicApiKey: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
 }
 
 /**
@@ -50,7 +51,8 @@ export const config: AppConfig = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   cookieSecure: resolveCookieSecure(resolvedNodeEnv),
   cookieSameSite: resolveCookieSameSite(resolvedNodeEnv),
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+  ollamaBaseUrl: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/+$/, ''),
+  ollamaModel: process.env.OLLAMA_MODEL || 'qwen2.5:3b',
 };
 
 export interface ConfigValidationResult {
@@ -84,10 +86,6 @@ export function validateConfig(): ConfigValidationResult {
     errors.push(
       'Invalid cookie configuration: sameSite=none requires secure=true, or browsers will reject the cookie entirely. Set COOKIE_SECURE=true (requires HTTPS) or COOKIE_SAMESITE=lax.'
     );
-  }
-
-  if (!config.anthropicApiKey) {
-    warnings.push('ANTHROPIC_API_KEY is not set. AI document analysis will be unavailable until it is configured.');
   }
 
   return {

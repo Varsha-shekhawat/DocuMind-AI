@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config/env.js';
 
 export class AiQaError extends Error {
@@ -16,29 +15,6 @@ export const QaResultSchema = z.object({
 
 export type QaResult = z.infer<typeof QaResultSchema>;
 
-const QA_TOOL: Anthropic.Tool = {
-  name: 'record_document_answer',
-  description:
-    'Records the grounded answer to the user question along with key verbatim quotation excerpts from the document context.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      answer: {
-        type: 'string',
-        description:
-          'The direct, clear answer strictly grounded in the document context. If the document lacks sufficient info, state clearly that the document does not contain enough information.',
-      },
-      sources: {
-        type: 'array',
-        items: { type: 'string' },
-        description:
-          '1-3 concise, verbatim quote snippets from the document context that substantiate the answer (empty array if no direct quote applies or if info is missing).',
-      },
-    },
-    required: ['answer', 'sources'],
-  },
-};
-
 const QA_SYSTEM_PROMPT = `You are UNFOLD Document Assistant, a precise, faithful reading companion.
 Your mission is to answer user questions about a document using ONLY the provided document context.
 
@@ -46,9 +22,17 @@ Strict Guidelines:
 1. Ground your entire answer exclusively in the text of the provided document.
 2. If the document does not contain sufficient information to answer the question, clearly state: "Based on the provided document, there is not enough information to answer this question." Do not extrapolate, speculate, or guess.
 3. NEVER use outside world knowledge to fabricate facts or make assumptions not directly stated in the text.
-4. When possible, include 1-3 short, verbatim quote excerpts from the document in the sources field to substantiate your answer.
+4. When possible, include 1-3 short, verbatim quote excerpts from the document in the "sources" field to substantiate your answer. Never fabricate quotations.
 5. Provide clear, structured, and helpful responses formatted in clean text or markdown bullets where appropriate.
-6. Always invoke the record_document_answer tool to return your result.`;
+6. You MUST respond strictly with a valid JSON object matching this exact schema:
+{
+  "answer": "Direct, clear answer grounded strictly in the document context.",
+  "sources": [
+    "Verbatim quote snippet 1 from the text",
+    "Verbatim quote snippet 2 from the text"
+  ]
+}
+Do not output any markdown formatting or conversation text outside the JSON object.`;
 
 const SINGLE_PASS_WORD_LIMIT = 25000;
 const MAX_QUERY_WORDS = 15000;
@@ -89,7 +73,6 @@ function retrieveRelevantContext(
 
   const keywords = extractKeywords(question);
   if (keywords.length === 0) {
-    // If no specific keywords, take the first N paragraphs up to word limit
     return paragraphs.slice(0, 20).join('\n\n');
   }
 
@@ -100,7 +83,6 @@ function retrieveRelevantContext(
     for (const kw of keywords) {
       if (lower.includes(kw)) {
         score += 1;
-        // Boost for exact word boundary match
         const regex = new RegExp(`\\b${kw}\\b`, 'i');
         if (regex.test(para)) {
           score += 1.5;
@@ -110,18 +92,15 @@ function retrieveRelevantContext(
     return { para, index, score };
   });
 
-  // Sort by score descending, pick highest relevant
   const topMatches = scored
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 18);
 
-  // If few or no keyword matches, fallback to beginning + middle sections
   if (topMatches.length === 0) {
     return paragraphs.slice(0, 20).join('\n\n');
   }
 
-  // Restore original chronological order of paragraphs
   topMatches.sort((a, b) => a.index - b.index);
 
   let totalWords = 0;
@@ -151,7 +130,7 @@ export interface AnswerQuestionInput {
 }
 
 /**
- * Answers a question strictly grounded in the provided document text using Anthropic Claude.
+ * Answers a question strictly grounded in the provided document text using local Ollama.
  */
 export async function answerDocumentQuestion(input: AnswerQuestionInput): Promise<QaResult> {
   const trimmedText = (input.documentText || '').trim();
@@ -165,85 +144,93 @@ export async function answerDocumentQuestion(input: AnswerQuestionInput): Promis
     throw new AiQaError('Please provide a valid question.');
   }
 
-  const apiKey = config.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    throw new AiQaError(
-      'Anthropic API key is not configured. Please set ANTHROPIC_API_KEY in your server environment to enable document Q&A.'
-    );
-  }
-
-  const client = new Anthropic({ apiKey: apiKey.trim() });
-  const modelName = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
-
   const words = trimmedText.split(/\s+/).filter(Boolean);
   let contextText = trimmedText;
 
   if (words.length > SINGLE_PASS_WORD_LIMIT) {
-    console.log(`[AI Q&A] Large document (${words.length} words); retrieving contextual passages.`);
+    console.log(`[AI Q&A] Large document (${words.length} words); retrieving contextual passages for Ollama.`);
     contextText = retrieveRelevantContext(trimmedText, trimmedQuestion, input.summaryContext);
   }
 
+  const userPrompt = `Document Title: "${input.documentName}"\n\n--- DOCUMENT CONTEXT START ---\n${contextText}\n--- DOCUMENT CONTEXT END ---\n\nUser Question: ${trimmedQuestion}\n\nPlease answer the question in the required JSON format based strictly on the document context above.`;
+
   try {
-    const response = await client.messages.create({
-      model: modelName,
-      max_tokens: 2048,
-      system: QA_SYSTEM_PROMPT,
-      tools: [QA_TOOL],
-      tool_choice: { type: 'tool', name: 'record_document_answer' },
-      messages: [
-        {
-          role: 'user',
-          content: `Document Title: "${input.documentName}"\n\n--- DOCUMENT CONTEXT START ---\n${contextText}\n--- DOCUMENT CONTEXT END ---\n\nUser Question: ${trimmedQuestion}\n\nPlease answer the question based strictly on the document context above.`,
+    const url = `${config.ollamaBaseUrl}/api/chat`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      ],
-    });
-
-    const toolUseBlock = response.content.find(
-      (block): block is Anthropic.ToolUseBlock =>
-        block.type === 'tool_use' && block.name === 'record_document_answer'
-    );
-
-    if (toolUseBlock && toolUseBlock.input) {
-      const parsed = QaResultSchema.parse(toolUseBlock.input);
-      return parsed;
+        body: JSON.stringify({
+          model: config.ollamaModel,
+          messages: [
+            { role: 'system', content: QA_SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt },
+          ],
+          format: 'json',
+          stream: false,
+          options: {
+            temperature: 0.1,
+          },
+        }),
+      });
+    } catch (err: unknown) {
+      console.error('[Ollama Connection Error]', err);
+      throw new AiQaError(
+        `Local AI service (Ollama) is unavailable at ${config.ollamaBaseUrl}. Please ensure Ollama is installed and running ('ollama serve') and model '${config.ollamaModel}' is available ('ollama pull ${config.ollamaModel}').`
+      );
     }
 
-    // Fallback: parse text block if tool call was missed
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === 'text'
-    );
-    if (textBlock && textBlock.text) {
-      const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsedJson = JSON.parse(jsonMatch[0]);
-        return QaResultSchema.parse(parsedJson);
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => '');
+      throw new AiQaError(`Ollama returned error status ${res.status}: ${errorBody || res.statusText}`);
+    }
+
+    const data = (await res.json()) as { message?: { content?: string }; response?: string };
+    const rawContent = data.message?.content || data.response || '';
+    if (!rawContent.trim()) {
+      throw new AiQaError('Ollama returned an empty response.');
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawContent);
+    } catch (_err) {
+      const match = rawContent.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[0]);
+        } catch (_nestedErr) {
+          return { answer: rawContent.trim(), sources: [] };
+        }
+      } else {
+        return { answer: rawContent.trim(), sources: [] };
       }
-      return {
-        answer: textBlock.text.trim(),
-        sources: [],
-      };
     }
 
-    throw new AiQaError('AI provider did not return an answer.');
+    try {
+      return QaResultSchema.parse(parsed);
+    } catch (_zodErr) {
+      if (typeof parsed === 'object' && parsed !== null) {
+        const obj = parsed as Record<string, unknown>;
+        const answer =
+          typeof obj.answer === 'string' && obj.answer.trim()
+            ? obj.answer.trim()
+            : rawContent.trim();
+        const sources = Array.isArray(obj.sources)
+          ? obj.sources
+              .map((s) => (typeof s === 'string' ? s.trim() : String(s).trim()))
+              .filter(Boolean)
+          : [];
+        return { answer, sources };
+      }
+      return { answer: rawContent.trim(), sources: [] };
+    }
   } catch (error) {
     if (error instanceof AiQaError) {
       throw error;
-    }
-    if (error instanceof Anthropic.AuthenticationError) {
-      throw new AiQaError('Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY setting.');
-    }
-    if (error instanceof Anthropic.RateLimitError) {
-      throw new AiQaError('AI service rate limit reached. Please wait a moment before trying again.');
-    }
-    if (error instanceof Anthropic.APIConnectionError) {
-      throw new AiQaError('Unable to connect to AI service. Please check your network connection.');
-    }
-    if (error instanceof Anthropic.APIError) {
-      throw new AiQaError(`AI service error: ${error.message}`);
-    }
-    if (error instanceof z.ZodError) {
-      console.error('[AI Q&A] Zod validation failed:', error.issues || error.message);
-      throw new AiQaError('Received malformed response structure from the AI service.');
     }
     console.error('[AI Q&A Error]', error);
     throw new AiQaError(
