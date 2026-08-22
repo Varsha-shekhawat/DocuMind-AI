@@ -11,6 +11,7 @@ import { toSafeDocument } from '../models/document.model.js';
 import { removeFileIfExists } from '../middleware/upload.middleware.js';
 import { runDocumentPipeline, runAiAnalysisPipeline } from '../services/extraction-runner.service.js';
 import { answerDocumentQuestion, AiQaError } from '../services/ai-qa.service.js';
+import { generateMarkdownExport } from '../services/export.service.js';
 
 /**
  * Handle document upload: POST /api/documents/upload
@@ -431,4 +432,65 @@ export async function askDocumentQuestion(req: Request, res: Response): Promise<
     });
   }
 }
+
+/**
+ * Handle document export (Markdown, JSON):
+ * GET /api/documents/:id/export?format=markdown|json
+ */
+export async function exportDocument(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const rawId = req.params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: { message: 'Invalid document ID format.', statusCode: 400 },
+    });
+    return;
+  }
+
+  const format = typeof req.query.format === 'string' ? req.query.format.toLowerCase() : 'markdown';
+
+  try {
+    const document = await getDocumentByIdAndUser(id, req.user.id);
+    if (!document) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'Document not found or permission denied.', statusCode: 404 },
+      });
+      return;
+    }
+
+    if (format === 'json') {
+      res.status(200).json({
+        success: true,
+        document: toSafeDocument(document),
+      });
+      return;
+    }
+
+    // Default to Markdown
+    const markdown = generateMarkdownExport(document);
+    const cleanFileName = document.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${cleanFileName}-unfold-summary.md"`);
+    res.status(200).send(markdown);
+  } catch (error) {
+    console.error('[Document Controller Error] Export failure:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to export document.', statusCode: 500 },
+    });
+  }
+}
+
 

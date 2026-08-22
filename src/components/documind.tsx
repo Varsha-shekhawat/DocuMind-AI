@@ -46,6 +46,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createMockDocument, getDocument, mockDocuments, type DocumentRecord, type DocumentStatus } from '@/data/mock-data';
 import { useAuth } from '@/lib/auth-context';
 import { documentsApi, type ApiDocument, type DocumentStage } from '@/lib/api-client';
+import { exportToMarkdown, exportToPdf } from '@/lib/export-utils';
 
 const buttonBase = 'inline-flex items-center justify-center gap-2 rounded-md text-sm font-semibold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50';
 
@@ -1499,6 +1500,16 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
   const [length, setLength] = useState<'Short' | 'Medium' | 'Long'>('Medium');
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [shared, setShared] = useState(false);
+
+  const handleShare = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      setShared(true);
+      window.setTimeout(() => setShared(false), 1500);
+    }
+  };
 
   const variants = 'summaryVariants' in document ? document.summaryVariants : undefined;
   const currentSummaryText = useMemo(() => {
@@ -1537,32 +1548,73 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
             </p>
             <h2 className="mt-2 font-display text-3xl">{document.name.replace(/\.[^/.]+$/, '')}</h2>
           </div>
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={copySummary}
               className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5"
+              title="Copy summary"
               aria-label="Copy summary"
               data-testid="button-copy-summary"
             >
               {copied ? <Check size={15} className="text-forest" /> : <Copy size={15} />}
             </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setExportOpen(!exportOpen)}
+                className={`grid h-9 w-9 place-items-center rounded-md border transition-colors ${
+                  exportOpen
+                    ? 'border-forest bg-forest/10 text-forest'
+                    : 'border-ink/15 text-ink/50 hover:bg-ink/5'
+                }`}
+                title="Export document"
+                aria-label="Export document"
+                data-testid="button-download-results"
+              >
+                <ArrowDownToLine size={15} />
+              </button>
+              {exportOpen && (
+                <div
+                  className="absolute right-0 z-30 mt-1.5 w-48 rounded border border-ink/15 bg-paper p-1 shadow-lg"
+                  data-testid="export-dropdown-menu"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportToMarkdown(document);
+                      setExportOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-xs font-medium text-ink/75 hover:bg-ink/5 hover:text-forest"
+                    data-testid="button-export-markdown"
+                  >
+                    <FileText size={14} className="text-ochre" />
+                    <span>Export Markdown (.md)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportToPdf(document);
+                      setExportOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-xs font-medium text-ink/75 hover:bg-ink/5 hover:text-forest"
+                    data-testid="button-export-pdf"
+                  >
+                    <BookOpen size={14} className="text-terracotta" />
+                    <span>Export PDF / Print</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handleShare}
               className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5"
-              aria-label="Download document"
-              data-testid="button-download-results"
-            >
-              <ArrowDownToLine size={15} />
-            </button>
-            <button
-              type="button"
-              className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/50 hover:bg-ink/5"
+              title="Share document link"
               aria-label="Share document"
               data-testid="button-share-results"
             >
-              <Share2 size={15} />
+              {shared ? <Check size={15} className="text-forest" /> : <Share2 size={15} />}
             </button>
           </div>
         </div>

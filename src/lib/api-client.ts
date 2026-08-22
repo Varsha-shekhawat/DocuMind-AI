@@ -224,4 +224,8 @@ export const documentsApi = {
       }
     );
   },
+
+  getExportUrl(id: string, format: 'markdown' | 'json' = 'markdown'): string {
+    return `/api/documents/${id}/export?format=${format}`;
+  },
 };
