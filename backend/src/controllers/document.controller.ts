@@ -10,6 +10,7 @@ import {
 import { toSafeDocument } from '../models/document.model.js';
 import { removeFileIfExists } from '../middleware/upload.middleware.js';
 import { runDocumentPipeline, runAiAnalysisPipeline } from '../services/extraction-runner.service.js';
+import { answerDocumentQuestion, AiQaError } from '../services/ai-qa.service.js';
 
 /**
  * Handle document upload: POST /api/documents/upload
@@ -310,3 +311,124 @@ export async function deleteDocument(req: Request, res: Response): Promise<void>
     });
   }
 }
+
+/**
+ * Handle asking a question grounded in a specific document:
+ * POST /api/documents/:id/ask
+ */
+export async function askDocumentQuestion(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: {
+        message: 'Authentication required.',
+        statusCode: 401,
+      },
+    });
+    return;
+  }
+
+  const rawId = req.params.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+  if (!id || typeof id !== 'string' || !ObjectId.isValid(id)) {
+    res.status(400).json({
+      success: false,
+      error: {
+        message: 'Invalid document ID format.',
+        statusCode: 400,
+      },
+    });
+    return;
+  }
+
+  const rawQuestion = typeof req.body.question === 'string' ? req.body.question.trim() : '';
+  if (!rawQuestion) {
+    res.status(400).json({
+      success: false,
+      error: {
+        message: 'Please provide a non-empty question.',
+        statusCode: 400,
+      },
+    });
+    return;
+  }
+
+  if (rawQuestion.length > 1000) {
+    res.status(400).json({
+      success: false,
+      error: {
+        message: 'Question is too long (maximum 1,000 characters).',
+        statusCode: 400,
+      },
+    });
+    return;
+  }
+
+  try {
+    const document = await getDocumentByIdAndUser(id, req.user.id);
+    if (!document) {
+      res.status(404).json({
+        success: false,
+        error: {
+          message: 'Document not found or permission denied.',
+          statusCode: 404,
+        },
+      });
+      return;
+    }
+
+    if (!document.extractedText || !document.extractedText.trim()) {
+      res.status(400).json({
+        success: false,
+        error: {
+          message: 'This document has no extracted text available for Q&A.',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+
+    if (document.status === 'Needs attention') {
+      res.status(400).json({
+        success: false,
+        error: {
+          message: 'This document encountered a processing error. Please retry processing first.',
+          statusCode: 400,
+        },
+      });
+      return;
+    }
+
+    const summaryText =
+      document.summary?.medium || document.summary?.short || document.description;
+
+    const result = await answerDocumentQuestion({
+      documentText: document.extractedText,
+      documentName: document.name,
+      question: rawQuestion,
+      summaryContext: summaryText,
+    });
+
+    res.status(200).json({
+      success: true,
+      documentId: id,
+      answer: result.answer,
+      sources: result.sources,
+    });
+  } catch (error) {
+    const message =
+      error instanceof AiQaError
+        ? error.message
+        : 'Failed to generate answer for your question.';
+    console.error('[Document Controller Error] Q&A failure:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        message,
+        statusCode: 500,
+      },
+    });
+  }
+}
+

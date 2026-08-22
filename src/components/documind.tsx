@@ -1191,7 +1191,7 @@ export function SummaryLengthControl({
 export function SummaryTabs({ active, onChange }: { active: string; onChange: (value: string) => void }) {
   return (
     <div className="flex min-w-max gap-6 border-b border-ink/15 px-1" role="tablist">
-      {['Summary', 'Key Points', 'Main Ideas', 'Suggestions'].map((item) => (
+      {['Summary', 'Key Points', 'Main Ideas', 'Suggestions', 'Ask Document'].map((item) => (
         <button
           type="button"
           key={item}
@@ -1252,6 +1252,244 @@ export function Suggestions({ suggestions }: { suggestions: string[] }) {
           <p className="text-sm leading-6 text-ink/70">{suggestion}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+interface QaMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: string[];
+  timestamp: string;
+}
+
+const SUGGESTED_QUESTIONS = [
+  'What is the main argument of this document?',
+  'What are the most important findings?',
+  'What risks or limitations are mentioned?',
+  'What should I remember from this document?',
+];
+
+export function DocumentQaSection({
+  documentId,
+  documentName,
+}: {
+  documentId: string;
+  documentName: string;
+}) {
+  const [messages, setMessages] = useState<QaMessage[]>([]);
+  const [inputQuestion, setInputQuestion] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  const handleAsk = async (questionText: string) => {
+    const query = questionText.trim();
+    if (!query || isLoading) return;
+
+    setError(null);
+    setInputQuestion('');
+
+    const userMsg: QaMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setIsLoading(true);
+
+    try {
+      const response = await documentsApi.ask(documentId, query);
+      const assistantMsg: QaMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: response.answer,
+        sources: response.sources,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to retrieve answer from AI assistant. Please try again.';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void handleAsk(inputQuestion);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-display text-xl">Ask about this document</p>
+          <p className="mt-1 text-xs text-ink/55">
+            Answers are grounded strictly in the extracted content of{' '}
+            <strong className="text-ink">{documentName}</strong>.
+          </p>
+        </div>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setMessages([]);
+              setError(null);
+            }}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink/45 hover:text-terracotta"
+            data-testid="button-clear-qa"
+          >
+            <RefreshCw size={12} /> Clear conversation
+          </button>
+        )}
+      </div>
+
+      {/* Suggested Questions */}
+      <div className="space-y-2">
+        <p className="font-mono-ui text-[9px] uppercase tracking-[.14em] text-terracotta">
+          Suggested inquiries
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SUGGESTED_QUESTIONS.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              disabled={isLoading}
+              onClick={() => void handleAsk(suggestion)}
+              className="group flex items-center gap-1.5 rounded-full border border-ink/15 bg-paper px-3 py-1.5 text-xs text-ink/70 transition-all hover:border-forest hover:bg-forest/5 hover:text-forest disabled:opacity-50"
+              data-testid={`button-suggested-question-${suggestion.slice(0, 15).toLowerCase().replace(/\s+/g, '-')}`}
+            >
+              <Sparkles size={12} className="text-terracotta group-hover:text-forest" />
+              <span>{suggestion}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Conversation Thread */}
+      <div className="min-h-[220px] max-h-[480px] overflow-y-auto space-y-4 rounded-md border border-ink/10 bg-[#f9f4ea]/50 p-4">
+        {messages.length === 0 ? (
+          <div className="flex min-h-[180px] flex-col items-center justify-center text-center p-6">
+            <div className="mb-3 grid h-10 w-10 place-items-center rounded-full bg-ochre/30 text-forest">
+              <BookOpen size={18} strokeWidth={1.5} />
+            </div>
+            <p className="font-display text-lg">Start a reading dialogue</p>
+            <p className="mt-1 max-w-[380px] text-xs leading-5 text-ink/50">
+              Ask anything about the arguments, evidence, findings, or conclusions in this document. Claude will provide grounded responses citing the text.
+            </p>
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex flex-col gap-1.5 ${
+                msg.role === 'user' ? 'items-end' : 'items-start'
+              }`}
+            >
+              <div
+                className={`max-w-[85%] rounded-lg p-4 text-sm ${
+                  msg.role === 'user'
+                    ? 'border border-forest/20 bg-forest text-paper shadow-sm'
+                    : 'border border-ink/15 bg-card text-ink shadow-sm'
+                }`}
+                data-testid={`qa-message-${msg.role}`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`font-mono-ui text-[9px] uppercase tracking-[.1em] ${msg.role === 'user' ? 'text-paper/70' : 'text-terracotta font-semibold'}`}>
+                    {msg.role === 'user' ? 'You' : 'UNFOLD Assistant'}
+                  </span>
+                  <span className={`text-[9px] ${msg.role === 'user' ? 'text-paper/50' : 'text-ink/35'}`}>
+                    {msg.timestamp}
+                  </span>
+                </div>
+                <div className={`whitespace-pre-line leading-6 ${msg.role === 'user' ? 'text-paper' : 'text-ink/80'}`}>
+                  {msg.content}
+                </div>
+
+                {msg.sources && msg.sources.length > 0 && (
+                  <div className="mt-4 border-t border-ink/10 pt-3">
+                    <p className="font-mono-ui text-[9px] uppercase tracking-[.12em] text-ink/50 mb-1.5">
+                      Cited excerpts:
+                    </p>
+                    <div className="space-y-1.5">
+                      {msg.sources.map((src, i) => (
+                        <blockquote
+                          key={i}
+                          className="border-l-2 border-ochre pl-2.5 text-xs italic leading-5 text-ink/65"
+                        >
+                          "{src}"
+                        </blockquote>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+
+        {isLoading && (
+          <div className="flex items-start gap-3 p-3 text-xs text-ink/60 bg-paper/80 rounded border border-ink/10 max-w-[80%] animate-pulse">
+            <LoaderCircle size={15} className="animate-spin text-terracotta shrink-0 mt-0.5" />
+            <span>Reading document and synthesizing answer...</span>
+          </div>
+        )}
+
+        {error && (
+          <div
+            className="rounded border border-terracotta/30 bg-terracotta/10 p-3 text-xs leading-5 text-terracotta"
+            data-testid="qa-error-message"
+          >
+            {error}
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Bar */}
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <label className="relative flex-1">
+          <input
+            type="text"
+            value={inputQuestion}
+            onChange={(e) => setInputQuestion(e.target.value)}
+            placeholder="Ask a question about this document..."
+            disabled={isLoading}
+            className="h-12 w-full border border-ink/15 bg-paper px-4 text-sm outline-none placeholder:text-ink/35 focus:border-terracotta disabled:opacity-50"
+            data-testid="input-qa-question"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={!inputQuestion.trim() || isLoading}
+          className={`${buttonBase} bg-forest px-5 h-12 text-paper hover:bg-forest/90`}
+          data-testid="button-qa-submit"
+        >
+          {isLoading ? (
+            <LoaderCircle size={15} className="animate-spin" />
+          ) : (
+            <>
+              <span>Ask</span>
+              <ArrowUpRight size={15} />
+            </>
+          )}
+        </button>
+      </form>
     </div>
   );
 }
@@ -1411,6 +1649,12 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
                 </p>
               )}
             </div>
+          )}
+          {active === 'Ask Document' && (
+            <DocumentQaSection
+              documentId={document.id}
+              documentName={document.name}
+            />
           )}
         </div>
       </section>
