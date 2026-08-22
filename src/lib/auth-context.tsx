@@ -9,6 +9,8 @@ interface AuthContextType {
   login: (credentials: { email: string; password: string }) => Promise<User>;
   register: (data: { name: string; email: string; password: string }) => Promise<User>;
   logout: () => Promise<void>;
+  updateUser: (user: User) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -17,7 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   // Query authenticated session from /api/auth/me
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['auth-user'],
     queryFn: async () => {
       try {
@@ -58,6 +60,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const user = data ?? null;
 
+  const updateUser = (updatedUser: User) => {
+    queryClient.setQueryData(['auth-user'], updatedUser);
+  };
+
+  const refreshUser = async () => {
+    await refetch();
+  };
+
   const login = async (credentials: { email: string; password: string }): Promise<User> => {
     const result = await loginMutation.mutateAsync(credentials);
     return result.user;
@@ -81,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        updateUser,
+        refreshUser,
       }}
     >
       {children}

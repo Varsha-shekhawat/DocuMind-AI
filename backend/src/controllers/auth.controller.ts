@@ -3,6 +3,8 @@ import { z } from 'zod';
 import {
   createUser,
   findUserByEmail,
+  findUserById,
+  updateUserSettings,
 } from '../services/user.service.js';
 import {
   hashPassword,
@@ -23,6 +25,21 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().trim().email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
+});
+
+export const updateSettingsSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name cannot exceed 100 characters')
+    .optional(),
+  preferences: z
+    .object({
+      defaultSummaryLength: z.enum(['Short', 'Medium', 'Long']).optional(),
+      emailNotification: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -73,14 +90,6 @@ export async function register(req: Request, res: Response): Promise<void> {
 
   const safeUser = toSafeUser(newUser);
 
-  // The token is also returned in the body (not just the HttpOnly cookie) so the
-  // frontend can hold a short-lived, in-memory Authorization header fallback.
-  // This does not weaken security: the cookie remains HttpOnly and is still the
-  // primary/persistent mechanism. The fallback only covers same-tab requests
-  // for the lifetime of the page, and exists because some cross-origin
-  // deployments (or browsers with strict third-party cookie policies) will
-  // silently refuse to attach the cookie to a subsequent fetch even though
-  // login itself succeeded.
   res.status(201).json({
     success: true,
     message: 'User registered successfully.',
@@ -141,8 +150,6 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const safeUser = toSafeUser(user);
 
-  // See the comment in register() above: token is duplicated into the body
-  // as a same-tab, in-memory fallback for the Authorization header.
   res.status(200).json({
     success: true,
     message: 'Logged in successfully.',
@@ -170,6 +177,99 @@ export function getMe(req: Request, res: Response): void {
     success: true,
     user: req.user,
   });
+}
+
+/**
+ * Handle retrieving user settings: GET /api/user/settings or /api/auth/settings
+ */
+export async function getUserSettings(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  try {
+    const user = await findUserById(req.user.id);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'User not found.', statusCode: 404 },
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      user: toSafeUser(user),
+    });
+  } catch (error) {
+    console.error('[Auth Controller Error] Failed to get user settings:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to retrieve settings.', statusCode: 500 },
+    });
+  }
+}
+
+/**
+ * Handle updating user settings / preferences: PATCH /api/user/settings or /api/auth/settings
+ */
+export async function updateSettings(req: Request, res: Response): Promise<void> {
+  if (!req.user || !req.user.id) {
+    res.status(401).json({
+      success: false,
+      error: { message: 'Authentication required.', statusCode: 401 },
+    });
+    return;
+  }
+
+  const parseResult = updateSettingsSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    const firstIssue = parseResult.error.issues[0];
+    res.status(400).json({
+      success: false,
+      error: {
+        message: firstIssue?.message || 'Invalid settings input format',
+        statusCode: 400,
+        details: parseResult.error.issues,
+      },
+    });
+    return;
+  }
+
+  const { name, preferences } = parseResult.data;
+
+  try {
+    const updatedUser = await updateUserSettings(req.user.id, {
+      name,
+      preferences,
+    });
+
+    if (!updatedUser) {
+      res.status(404).json({
+        success: false,
+        error: { message: 'User not found.', statusCode: 404 },
+      });
+      return;
+    }
+
+    const safeUser = toSafeUser(updatedUser);
+
+    res.status(200).json({
+      success: true,
+      message: 'Settings updated successfully.',
+      user: safeUser,
+    });
+  } catch (error) {
+    console.error('[Auth Controller Error] Failed to update user settings:', error);
+    res.status(500).json({
+      success: false,
+      error: { message: 'Failed to update settings.', statusCode: 500 },
+    });
+  }
 }
 
 /**
