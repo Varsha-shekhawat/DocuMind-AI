@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 import { config } from '../config/env.js';
 
@@ -28,15 +29,16 @@ export const AnalysisResultSchema = z.object({
 
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
-const SYSTEM_PROMPT = `You are UNFOLD, a calm, deeply thoughtful document intelligence engine.
-Your mission is to read the provided text and produce a structured JSON object containing multi-tier summaries, key takeaways, core thematic arguments, and actionable suggestions.
+const SYSTEM_PROMPT = `You are UNFOLD, a calm, deeply thoughtful research assistant and document intelligence engine.
+Your mission is to read complex texts with care, nuance, and structural clarity.
+You extract clear multi-tiered summaries (Short, Medium, Long), core claims, structured main ideas with descriptive titles and explanations, and actionable reading suggestions.
 
 You MUST respond strictly with a valid JSON object matching this exact schema:
 {
   "summary": {
-    "short": "A crisp 1-2 sentence high-level executive brief (30-50 words).",
-    "medium": "A balanced 1-2 paragraph overview capturing core premises, evidence, and findings (100-150 words).",
-    "long": "A comprehensive multi-paragraph synthesis covering context, reasoning, detailed findings, and implications (250-400 words)."
+    "short": "A crisp 1-2 sentence high-level executive brief (approx 30-50 words).",
+    "medium": "A balanced 1-2 paragraph overview capturing core premises, evidence, and findings (approx 100-150 words).",
+    "long": "A comprehensive multi-paragraph synthesis covering context, reasoning, detailed findings, and implications (approx 250-400 words)."
   },
   "keyPoints": [
     "Punchy, distinct bullet point takeaway 1",
@@ -57,11 +59,11 @@ You MUST respond strictly with a valid JSON object matching this exact schema:
 
 Strict Rules:
 1. Base your output strictly on the provided document text.
-2. Return ONLY the JSON object. Do not include introductory text, markdown commentary, or disclaimers outside the JSON.`;
+2. Return ONLY the JSON object. Do not include markdown commentary, intro text, or conversational padding outside the JSON.`;
 
 const MAX_WORD_LIMIT = 150000;
-const CHUNK_WORD_THRESHOLD = 25000;
-const CHUNK_SIZE = 12000;
+const CHUNK_WORD_THRESHOLD = 30000;
+const CHUNK_SIZE = 15000;
 const CHUNK_OVERLAP = 500;
 
 function splitIntoWords(text: string): string[] {
@@ -81,55 +83,7 @@ function chunkTextByWords(words: string[], chunkSize: number, overlap: number): 
 }
 
 /**
- * Sends a chat completion prompt to the local Ollama HTTP API.
- */
-async function callOllama(prompt: string, systemPrompt: string): Promise<string> {
-  const url = `${config.ollamaBaseUrl}/api/chat`;
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.ollamaModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
-        ],
-        format: 'json',
-        stream: false,
-        options: {
-          temperature: 0.2,
-        },
-      }),
-    });
-  } catch (err: unknown) {
-    console.error('[Ollama Connection Error]', err);
-    throw new AiAnalysisError(
-      `Local AI service (Ollama) is unavailable at ${config.ollamaBaseUrl}. Please ensure Ollama is installed and running ('ollama serve') and model '${config.ollamaModel}' is available ('ollama pull ${config.ollamaModel}').`
-    );
-  }
-
-  if (!res.ok) {
-    const errorBody = await res.text().catch(() => '');
-    throw new AiAnalysisError(
-      `Ollama returned error status ${res.status}: ${errorBody || res.statusText}`
-    );
-  }
-
-  const data = (await res.json()) as { message?: { content?: string }; response?: string };
-  const rawContent = data.message?.content || data.response || '';
-  if (!rawContent.trim()) {
-    throw new AiAnalysisError('Ollama returned an empty response.');
-  }
-
-  return rawContent;
-}
-
-/**
- * Safely parses and validates structured JSON analysis returned by Ollama.
+ * Safely parses and validates structured JSON analysis returned by Gemini.
  */
 function parseAnalysisJson(rawJson: string): AnalysisResult {
   let parsed: unknown;
@@ -141,17 +95,16 @@ function parseAnalysisJson(rawJson: string): AnalysisResult {
       try {
         parsed = JSON.parse(match[0]);
       } catch (_nestedErr) {
-        throw new AiAnalysisError('Failed to parse structured JSON response from local AI model.');
+        throw new AiAnalysisError('Failed to parse structured JSON response from Gemini AI model.');
       }
     } else {
-      throw new AiAnalysisError('Failed to parse structured JSON response from local AI model.');
+      throw new AiAnalysisError('Failed to parse structured JSON response from Gemini AI model.');
     }
   }
 
   try {
     return AnalysisResultSchema.parse(parsed);
   } catch (_zodErr) {
-    // Robust fallback normalization for minor JSON structural variations
     if (typeof parsed === 'object' && parsed !== null) {
       const obj = parsed as Record<string, unknown>;
       const summaryObj =
@@ -225,12 +178,12 @@ function parseAnalysisJson(rawJson: string): AnalysisResult {
       };
     }
 
-    throw new AiAnalysisError('Received malformed response format from local AI service.');
+    throw new AiAnalysisError('Received malformed response format from Gemini AI service.');
   }
 }
 
 /**
- * Executes structured AI document analysis on extracted text using local Ollama.
+ * Executes structured AI document analysis on extracted text using Google Gemini 2.5 Flash.
  */
 export async function analyzeDocumentText(text: string): Promise<AnalysisResult> {
   const trimmed = (text || '').trim();
@@ -245,23 +198,38 @@ export async function analyzeDocumentText(text: string): Promise<AnalysisResult>
     );
   }
 
+  const apiKey = config.geminiApiKey || process.env.GEMINI_API_KEY;
+  if (!apiKey || !apiKey.trim()) {
+    throw new AiAnalysisError(
+      'Google Gemini API key is not configured. Please set GEMINI_API_KEY in your server environment to enable AI analysis.'
+    );
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey.trim());
+  const modelName = config.geminiModel || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
   try {
     let contentToAnalyze = trimmed;
 
     // Hierarchical chunking strategy if document exceeds single-pass threshold
     if (words.length > CHUNK_WORD_THRESHOLD) {
-      console.log(`[AI Analysis] Document has ${words.length} words; using hierarchical chunking strategy with Ollama.`);
+      console.log(`[AI Analysis] Document has ${words.length} words; using hierarchical chunking strategy with Gemini.`);
       const chunks = chunkTextByWords(words, CHUNK_SIZE, CHUNK_OVERLAP);
       const sectionSummaries: string[] = [];
 
+      const chunkModel = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: { temperature: 0.2 },
+        systemInstruction:
+          'You are an expert synthesizer. Distill the core arguments, evidence, and structure from this document section into a concise 150-200 word summary with 3 bullet takeaways.',
+      });
+
       for (let i = 0; i < chunks.length; i++) {
-        console.log(`[AI Analysis] Distilling section ${i + 1} of ${chunks.length} via Ollama...`);
-        const chunkPrompt = `Summarize section ${i + 1} of ${chunks.length} into a concise summary:\n\n${chunks[i]}`;
-        const chunkResult = await callOllama(
-          chunkPrompt,
-          'You are an expert synthesizer. Distill the core arguments and structure from this document section into a concise 150-200 word summary.'
-        );
-        sectionSummaries.push(`--- SECTION ${i + 1} OF ${chunks.length} ---\n${chunkResult}`);
+        console.log(`[AI Analysis] Distilling section ${i + 1} of ${chunks.length} via Gemini...`);
+        const chunkPrompt = `Summarize section ${i + 1} of ${chunks.length}:\n\n${chunks[i]}`;
+        const chunkResult = await chunkModel.generateContent(chunkPrompt);
+        const chunkText = chunkResult.response.text();
+        sectionSummaries.push(`--- SECTION ${i + 1} OF ${chunks.length} ---\n${chunkText}`);
       }
 
       contentToAnalyze = `Below are synthesized summaries covering the entire document in sequential sections:\n\n${sectionSummaries.join(
@@ -269,16 +237,39 @@ export async function analyzeDocumentText(text: string): Promise<AnalysisResult>
       )}`;
     }
 
+    const mainModel = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.2,
+      },
+      systemInstruction: SYSTEM_PROMPT,
+    });
+
     const userPrompt = `Please read and analyze the following document content, providing multi-tiered summaries (Short, Medium, Long), key takeaways, thematic main ideas with titles and bodies, and actionable follow-up suggestions in valid JSON format:\n\n${contentToAnalyze}`;
 
-    const rawResponse = await callOllama(userPrompt, SYSTEM_PROMPT);
-    const analysis = parseAnalysisJson(rawResponse);
+    const response = await mainModel.generateContent(userPrompt);
+    const responseText = response.response.text();
+    const analysis = parseAnalysisJson(responseText);
     return analysis;
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof AiAnalysisError) {
       throw error;
     }
+
+    const errMsg = error instanceof Error ? error.message : String(error);
     console.error('[AI Analysis Error]', error);
+
+    if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
+      throw new AiAnalysisError('Invalid Google Gemini API key. Please check your GEMINI_API_KEY configuration.');
+    }
+    if (errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+      throw new AiAnalysisError('Google Gemini API rate limit reached. Please wait a moment and try again.');
+    }
+    if (errMsg.includes('fetch failed') || errMsg.includes('network') || errMsg.includes('ENOTFOUND')) {
+      throw new AiAnalysisError('Unable to connect to Google Gemini service. Please check network connectivity.');
+    }
+
     throw new AiAnalysisError(
       error instanceof Error ? error.message : 'An unexpected error occurred during AI analysis.'
     );

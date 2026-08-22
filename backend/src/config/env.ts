@@ -12,8 +12,8 @@ export interface AppConfig {
   jwtExpiresIn: string;
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'none' | 'strict';
-  ollamaBaseUrl: string;
-  ollamaModel: string;
+  geminiApiKey: string;
+  geminiModel: string;
 }
 
 /**
@@ -51,8 +51,8 @@ export const config: AppConfig = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   cookieSecure: resolveCookieSecure(resolvedNodeEnv),
   cookieSameSite: resolveCookieSameSite(resolvedNodeEnv),
-  ollamaBaseUrl: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/+$/, ''),
-  ollamaModel: process.env.OLLAMA_MODEL || 'qwen2.5:3b',
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 };
 
 export interface ConfigValidationResult {
@@ -86,6 +86,10 @@ export function validateConfig(): ConfigValidationResult {
     errors.push(
       'Invalid cookie configuration: sameSite=none requires secure=true, or browsers will reject the cookie entirely. Set COOKIE_SECURE=true (requires HTTPS) or COOKIE_SAMESITE=lax.'
     );
+  }
+
+  if (!config.geminiApiKey) {
+    warnings.push('GEMINI_API_KEY is not set. AI document analysis and Q&A will be unavailable until it is configured.');
   }
 
   return {

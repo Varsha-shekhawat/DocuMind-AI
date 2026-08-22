@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 import { config } from '../config/env.js';
 
@@ -130,7 +131,7 @@ export interface AnswerQuestionInput {
 }
 
 /**
- * Answers a question strictly grounded in the provided document text using local Ollama.
+ * Answers a question strictly grounded in the provided document text using Google Gemini 2.5 Flash.
  */
 export async function answerDocumentQuestion(input: AnswerQuestionInput): Promise<QaResult> {
   const trimmedText = (input.documentText || '').trim();
@@ -144,54 +145,41 @@ export async function answerDocumentQuestion(input: AnswerQuestionInput): Promis
     throw new AiQaError('Please provide a valid question.');
   }
 
+  const apiKey = config.geminiApiKey || process.env.GEMINI_API_KEY;
+  if (!apiKey || !apiKey.trim()) {
+    throw new AiQaError(
+      'Google Gemini API key is not configured. Please set GEMINI_API_KEY in your server environment to enable document Q&A.'
+    );
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey.trim());
+  const modelName = config.geminiModel || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
   const words = trimmedText.split(/\s+/).filter(Boolean);
   let contextText = trimmedText;
 
   if (words.length > SINGLE_PASS_WORD_LIMIT) {
-    console.log(`[AI Q&A] Large document (${words.length} words); retrieving contextual passages for Ollama.`);
+    console.log(`[AI Q&A] Large document (${words.length} words); retrieving contextual passages for Gemini.`);
     contextText = retrieveRelevantContext(trimmedText, trimmedQuestion, input.summaryContext);
   }
 
   const userPrompt = `Document Title: "${input.documentName}"\n\n--- DOCUMENT CONTEXT START ---\n${contextText}\n--- DOCUMENT CONTEXT END ---\n\nUser Question: ${trimmedQuestion}\n\nPlease answer the question in the required JSON format based strictly on the document context above.`;
 
   try {
-    const url = `${config.ollamaBaseUrl}/api/chat`;
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: config.ollamaModel,
-          messages: [
-            { role: 'system', content: QA_SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          format: 'json',
-          stream: false,
-          options: {
-            temperature: 0.1,
-          },
-        }),
-      });
-    } catch (err: unknown) {
-      console.error('[Ollama Connection Error]', err);
-      throw new AiQaError(
-        `Local AI service (Ollama) is unavailable at ${config.ollamaBaseUrl}. Please ensure Ollama is installed and running ('ollama serve') and model '${config.ollamaModel}' is available ('ollama pull ${config.ollamaModel}').`
-      );
-    }
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.1,
+      },
+      systemInstruction: QA_SYSTEM_PROMPT,
+    });
 
-    if (!res.ok) {
-      const errorBody = await res.text().catch(() => '');
-      throw new AiQaError(`Ollama returned error status ${res.status}: ${errorBody || res.statusText}`);
-    }
+    const response = await model.generateContent(userPrompt);
+    const rawContent = response.response.text();
 
-    const data = (await res.json()) as { message?: { content?: string }; response?: string };
-    const rawContent = data.message?.content || data.response || '';
     if (!rawContent.trim()) {
-      throw new AiQaError('Ollama returned an empty response.');
+      throw new AiQaError('Gemini returned an empty response.');
     }
 
     let parsed: unknown;
@@ -228,11 +216,24 @@ export async function answerDocumentQuestion(input: AnswerQuestionInput): Promis
       }
       return { answer: rawContent.trim(), sources: [] };
     }
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof AiQaError) {
       throw error;
     }
+
+    const errMsg = error instanceof Error ? error.message : String(error);
     console.error('[AI Q&A Error]', error);
+
+    if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
+      throw new AiQaError('Invalid Google Gemini API key. Please check your GEMINI_API_KEY setting.');
+    }
+    if (errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+      throw new AiQaError('Google Gemini API rate limit reached. Please wait a moment before trying again.');
+    }
+    if (errMsg.includes('fetch failed') || errMsg.includes('network') || errMsg.includes('ENOTFOUND')) {
+      throw new AiQaError('Unable to connect to Google Gemini service. Please check network connectivity.');
+    }
+
     throw new AiQaError(
       error instanceof Error ? error.message : 'An unexpected error occurred while generating the answer.'
     );
