@@ -14,6 +14,7 @@ import {
   clearAuthCookie,
 } from '../services/auth.service.js';
 import { toSafeUser } from '../models/user.model.js';
+import { DatabaseUnavailableError } from '../db/connection.js';
 
 // Input validation schemas
 export const registerSchema = z.object({
@@ -63,39 +64,63 @@ export async function register(req: Request, res: Response): Promise<void> {
 
   const { name, email, password } = parseResult.data;
 
-  // Check for duplicate account
-  const existingUser = await findUserByEmail(email);
-  if (existingUser) {
-    res.status(409).json({
+  try {
+    // Check for duplicate account
+    const existingUser = await findUserByEmail(email);
+    if (existingUser) {
+      res.status(409).json({
+        success: false,
+        error: {
+          message: 'An account with this email address already exists.',
+          statusCode: 409,
+        },
+      });
+      return;
+    }
+
+    // Hash password and persist user
+    const passwordHash = await hashPassword(password);
+    const newUser = await createUser({
+      name,
+      email,
+      passwordHash,
+    });
+
+    // Issue authentication token via HTTP-only cookie
+    const token = generateToken(newUser._id.toHexString());
+    setAuthCookie(res, token);
+
+    const safeUser = toSafeUser(newUser);
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully.',
+      user: safeUser,
+      token,
+    });
+  } catch (error) {
+    if (
+      error instanceof DatabaseUnavailableError ||
+      (error instanceof Error && error.name === 'DatabaseUnavailableError')
+    ) {
+      res.status(503).json({
+        success: false,
+        error: {
+          message: 'Database service is temporarily unavailable. Please verify MongoDB Atlas connection and Network Access.',
+          statusCode: 503,
+        },
+      });
+      return;
+    }
+    console.error('[Auth Controller Error] Registration failed:', error);
+    res.status(500).json({
       success: false,
       error: {
-        message: 'An account with this email address already exists.',
-        statusCode: 409,
+        message: 'An error occurred during registration.',
+        statusCode: 500,
       },
     });
-    return;
   }
-
-  // Hash password and persist user
-  const passwordHash = await hashPassword(password);
-  const newUser = await createUser({
-    name,
-    email,
-    passwordHash,
-  });
-
-  // Issue authentication token via HTTP-only cookie
-  const token = generateToken(newUser._id.toHexString());
-  setAuthCookie(res, token);
-
-  const safeUser = toSafeUser(newUser);
-
-  res.status(201).json({
-    success: true,
-    message: 'User registered successfully.',
-    user: safeUser,
-    token,
-  });
 }
 
 /**
@@ -118,44 +143,68 @@ export async function login(req: Request, res: Response): Promise<void> {
 
   const { email, password } = parseResult.data;
 
-  // Find user
-  const user = await findUserByEmail(email);
-  if (!user) {
-    res.status(401).json({
+  try {
+    // Find user
+    const user = await findUserByEmail(email);
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        error: {
+          message: 'Invalid email or password.',
+          statusCode: 401,
+        },
+      });
+      return;
+    }
+
+    // Verify password
+    const isMatch = await verifyPassword(password, user.passwordHash);
+    if (!isMatch) {
+      res.status(401).json({
+        success: false,
+        error: {
+          message: 'Invalid email or password.',
+          statusCode: 401,
+        },
+      });
+      return;
+    }
+
+    // Issue authentication token via HTTP-only cookie
+    const token = generateToken(user._id.toHexString());
+    setAuthCookie(res, token);
+
+    const safeUser = toSafeUser(user);
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged in successfully.',
+      user: safeUser,
+      token,
+    });
+  } catch (error) {
+    if (
+      error instanceof DatabaseUnavailableError ||
+      (error instanceof Error && error.name === 'DatabaseUnavailableError')
+    ) {
+      res.status(503).json({
+        success: false,
+        error: {
+          message: 'Database service is temporarily unavailable. Please verify MongoDB Atlas connection and Network Access.',
+          statusCode: 503,
+        },
+      });
+      return;
+    }
+    console.error('[Auth Controller Error] Login failed:', error);
+    res.status(500).json({
       success: false,
       error: {
-        message: 'Invalid email or password.',
-        statusCode: 401,
+        message: 'An error occurred during login.',
+        statusCode: 500,
       },
     });
-    return;
   }
-
-  // Verify password
-  const isMatch = await verifyPassword(password, user.passwordHash);
-  if (!isMatch) {
-    res.status(401).json({
-      success: false,
-      error: {
-        message: 'Invalid email or password.',
-        statusCode: 401,
-      },
-    });
-    return;
-  }
-
-  // Issue authentication token via HTTP-only cookie
-  const token = generateToken(user._id.toHexString());
-  setAuthCookie(res, token);
-
-  const safeUser = toSafeUser(user);
-
-  res.status(200).json({
-    success: true,
-    message: 'Logged in successfully.',
-    user: safeUser,
-    token,
-  });
 }
 
 /**

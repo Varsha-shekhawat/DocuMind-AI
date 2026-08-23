@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AUTH_COOKIE_NAME, verifyToken } from '../services/auth.service.js';
 import { findUserById } from '../services/user.service.js';
+import { DatabaseUnavailableError } from '../db/connection.js';
 import type { SafeUser } from '../models/user.model.js';
 import { toSafeUser } from '../models/user.model.js';
 
@@ -59,6 +60,19 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     next();
   } catch (error) {
     console.error('[Auth Middleware Error]', error);
+    if (
+      error instanceof DatabaseUnavailableError ||
+      (error instanceof Error && error.name === 'DatabaseUnavailableError')
+    ) {
+      res.status(503).json({
+        success: false,
+        error: {
+          message: 'Database service is temporarily unavailable. Please verify MongoDB Atlas connection and Network Access.',
+          statusCode: 503,
+        },
+      });
+      return;
+    }
     res.status(500).json({
       success: false,
       error: {
