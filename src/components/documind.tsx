@@ -111,7 +111,6 @@ export function Navbar() {
         <nav className="hidden items-center gap-8 text-[12px] text-ink/70 md:flex" aria-label="Primary navigation">
           <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} data-testid="link-how-it-works" className="cursor-pointer transition-colors hover:text-terracotta">How it works</a>
           <a href="/#features" onClick={(e) => handleNavClick(e, 'features')} data-testid="link-features" className="cursor-pointer transition-colors hover:text-terracotta">Features</a>
-          <a href="/#pricing" onClick={(e) => handleNavClick(e, 'pricing')} data-testid="link-pricing" className="cursor-pointer transition-colors hover:text-terracotta">Pricing</a>
           <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} data-testid="link-about" className="cursor-pointer transition-colors hover:text-terracotta">About us</a>
         </nav>
         <div className="hidden items-center gap-5 md:flex">
@@ -128,7 +127,6 @@ export function Navbar() {
             <Link href="/" onClick={() => setOpen(false)} className="text-ink/75 hover:text-terracotta" data-testid="mobile-link-home">Home</Link>
             <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-how-it-works">How It Works</a>
             <a href="/#features" onClick={(e) => handleNavClick(e, 'features')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-features">Features</a>
-            <a href="/#pricing" onClick={(e) => handleNavClick(e, 'pricing')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-pricing">Pricing</a>
             <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} className="cursor-pointer text-ink/75 hover:text-terracotta" data-testid="mobile-link-about">About Us</a>
             <Link href="/documents" onClick={() => setOpen(false)} className="text-ink/75 hover:text-terracotta" data-testid="mobile-link-documents">Documents</Link>
             <Link href="/settings" onClick={() => setOpen(false)} className="text-ink/75 hover:text-terracotta" data-testid="mobile-link-settings">Settings</Link>
@@ -394,101 +392,6 @@ export function LandingPage() {
             </div>
           </div>
         </section>
-
-        {/* 4. PRICING SECTION */}
-        <section id="pricing" className="scroll-mt-20 mx-auto max-w-[1320px] px-5 py-24 md:scroll-mt-24 md:px-10 md:py-32">
-          <div className="mb-14 text-center">
-            <p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-terracotta">Simple, Transparent Pricing</p>
-            <h2 className="mt-3 font-display text-[clamp(2.5rem,4.5vw,4.5rem)] leading-[.94] tracking-[-.05em]">
-              Invest in clarity.
-            </h2>
-            <p className="mt-4 mx-auto max-w-[480px] text-sm leading-6 text-ink/60">
-              Start reading for free. Upgrade when your research volume and library needs expand.
-            </p>
-          </div>
-
-          <div className="mx-auto grid max-w-[960px] gap-8 md:grid-cols-2">
-            {/* Free Tier */}
-            <div className="paper-texture border border-ink/15 bg-card p-8 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-2xl text-ink">Free</h3>
-                  <span className="font-mono-ui text-[9px] uppercase tracking-[.12em] text-forest border border-forest/20 px-2 py-0.5 rounded-full">Preview</span>
-                </div>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="font-display text-4xl text-ink">$0</span>
-                  <span className="font-mono-ui text-[10px] text-ink/45 uppercase tracking-[.1em]">/ month</span>
-                </div>
-                <p className="mt-3 text-xs leading-5 text-ink/60">
-                  Ideal for students, occasional readers, and exploratory research.
-                </p>
-                <div className="mt-7 space-y-3 border-t border-ink/10 pt-6 text-xs text-ink/75">
-                  {[
-                    'Up to 10 document uploads',
-                    'PDF, DOCX, and TXT files (up to 25 MB)',
-                    'Multi-level summaries with length controls',
-                    'Key points and main ideas extraction',
-                    'Personal reading room & document library',
-                  ].map((feat) => (
-                    <div key={feat} className="flex items-center gap-2.5">
-                      <Check size={14} className="shrink-0 text-forest" />
-                      <span>{feat}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-8 pt-4">
-                <Link href="/documents/new" className={`${buttonBase} w-full border border-ink/20 bg-paper py-3 text-xs text-ink hover:border-ink/40`} data-testid="button-pricing-free">
-                  Get started free
-                </Link>
-              </div>
-            </div>
-
-            {/* Pro Tier */}
-            <div className="paper-texture border-2 border-forest bg-card p-8 shadow-md relative flex flex-col justify-between">
-              <span className="absolute -top-3 right-6 bg-forest text-paper font-mono-ui text-[9px] uppercase tracking-[.14em] px-3 py-0.5 rounded-full">
-                Recommended
-              </span>
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-display text-2xl text-ink">Pro Reader</h3>
-                  <span className="font-mono-ui text-[9px] uppercase tracking-[.12em] text-terracotta border border-terracotta/20 px-2 py-0.5 rounded-full">Unlimited</span>
-                </div>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="font-display text-4xl text-ink">$12</span>
-                  <span className="font-mono-ui text-[10px] text-ink/45 uppercase tracking-[.1em]">/ month</span>
-                </div>
-                <p className="mt-3 text-xs leading-5 text-ink/60">
-                  For researchers, analysts, and professionals with heavy reading loads.
-                </p>
-                <div className="mt-7 space-y-3 border-t border-ink/10 pt-6 text-xs text-ink/75">
-                  {[
-                    'Unlimited document uploads & storage',
-                    'Priority AI processing queue',
-                    'Full actionable recommendations & questions',
-                    'Markdown & PDF synthesis export',
-                    'Advanced search and tag filtering',
-                    'Encrypted & private cloud workspace',
-                  ].map((feat) => (
-                    <div key={feat} className="flex items-center gap-2.5">
-                      <Check size={14} className="shrink-0 text-forest" />
-                      <span>{feat}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-8 pt-4">
-                <Link href="/register" className={`${buttonBase} w-full bg-forest py-3 text-xs text-paper hover:bg-forest/90`} data-testid="button-pricing-pro">
-                  Start reading with Pro
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-10 text-center font-mono-ui text-[10px] uppercase tracking-[.14em] text-ink/45">
-            No credit card required. Free to explore during preview.
-          </p>
-        </section>
       </main>
 
       {/* FOOTER */}
@@ -499,7 +402,6 @@ export function LandingPage() {
           <div className="flex flex-wrap items-center gap-5">
             <a href="/#how-it-works" onClick={(e) => scrollToAnchor(e, 'how-it-works')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-how-it-works">How It Works</a>
             <a href="/#features" onClick={(e) => scrollToAnchor(e, 'features')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-features">Features</a>
-            <a href="/#pricing" onClick={(e) => scrollToAnchor(e, 'pricing')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-pricing">Pricing</a>
             <a href="/#about" onClick={(e) => scrollToAnchor(e, 'about')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-about">About</a>
             <Link href="/documents" className="hover:text-terracotta" data-testid="link-footer-documents">Documents</Link>
             <Link href="/login" className="hover:text-terracotta" data-testid="link-footer-login">Log in</Link>
@@ -659,7 +561,6 @@ export function HowItWorksPage() {
           <div className="flex flex-wrap items-center gap-5">
             <a href="/#how-it-works" onClick={(e) => scrollToAnchor(e, 'how-it-works')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-how-it-works">How It Works</a>
             <a href="/#features" onClick={(e) => scrollToAnchor(e, 'features')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-features">Features</a>
-            <a href="/#pricing" onClick={(e) => scrollToAnchor(e, 'pricing')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-pricing">Pricing</a>
             <a href="/#about" onClick={(e) => scrollToAnchor(e, 'about')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-about">About</a>
             <Link href="/documents" className="hover:text-terracotta" data-testid="link-footer-documents">Documents</Link>
             <Link href="/login" className="hover:text-terracotta" data-testid="link-footer-login">Log in</Link>
