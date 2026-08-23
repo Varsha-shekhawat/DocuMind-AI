@@ -131,13 +131,25 @@ export class ApiError extends Error {
 }
 
 /**
+ * Resolves the full target URL for an API endpoint.
+ * In local dev (empty VITE_API_URL), uses relative /api to hit the Vite proxy.
+ * In production (e.g. Vercel), prepends VITE_API_URL (e.g. https://unfold-backend.onrender.com).
+ */
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
+export function getApiUrl(endpoint: string): string {
+  const normalized = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return API_BASE_URL ? `${API_BASE_URL}${normalized}` : normalized;
+}
+
+/**
  * Base HTTP request wrapper with JSON serialization and credentials (cookies) included.
  */
 export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = getApiUrl(endpoint);
 
   const headers = new Headers(options.headers || {});
   // Only set Content-Type to JSON if not sending FormData
@@ -335,7 +347,7 @@ export const documentsApi = {
   },
 
   getExportUrl(id: string, format: 'markdown' | 'json' = 'markdown'): string {
-    return `/api/documents/${id}/export?format=${format}`;
+    return getApiUrl(`/api/documents/${id}/export?format=${format}`);
   },
 };
 

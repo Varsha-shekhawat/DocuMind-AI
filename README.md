@@ -1,12 +1,12 @@
-# DocuMind AI
+# UNFOLD (DocuMind AI)
 
-**DocuMind AI** (featuring the UNFOLD editorial reading interface) is an AI-powered document intelligence and reading assistant that enables users to upload complex documents, extract their textual content, generate multi-tier structured summaries, ask citation-grounded questions, take persistent notes, export insights, and securely share syntheses with colleagues and collaborators.
+**UNFOLD** is an AI-powered document intelligence and analytical reading workspace. It enables users to upload complex documents, extract textual content natively (PDF, DOCX, TXT) and through OCR (PNG, JPG, JPEG, WEBP), generate structured multi-tier summaries with Google Gemini, engage in citation-grounded question answering, record persistent color-coded notes, export syntheses to Markdown or styled PDF printouts, and publish secure, revocable share links for collaborators.
 
 ---
 
 ## Table of Contents
 
-1. [Why DocuMind AI?](#why-documind-ai)
+1. [Overview & Purpose](#overview--purpose)
 2. [Features](#features)
 3. [Tech Stack](#tech-stack)
 4. [Architecture](#architecture)
@@ -14,22 +14,24 @@
 6. [Project Structure](#project-structure)
 7. [Environment Variables](#environment-variables)
 8. [Local Development](#local-development)
-9. [Verification](#verification)
-10. [Future Improvements](#future-improvements)
+9. [Verification & Testing](#verification--testing)
+10. [Production Deployment](#production-deployment)
+11. [Future Improvements](#future-improvements)
+12. [License](#license)
 
 ---
 
-## Why DocuMind AI?
+## Overview & Purpose
 
-Knowledge workers, researchers, analysts, and students routinely face long, dense documents—academic papers, legal briefs, technical specifications, and executive reports—where manually scanning pages to locate crucial arguments is time-consuming and cognitively demanding.
+Knowledge workers, researchers, analysts, and students face dense documents—academic papers, legal filings, technical specifications, and executive briefs—where manually scanning pages to extract core insights is cognitively taxing.
 
-DocuMind AI streamlines this workflow through:
-- **Automated Text Extraction**: Eliminating copy-paste friction across PDF, DOCX, and TXT files.
-- **Multi-Level Summarization**: Offering dynamic short, medium, and long summaries tailored to the reader's current depth of inquiry.
-- **Thematic Structuring**: Categorizing key takeaways, core thematic arguments, and actionable suggestions.
+UNFOLD streamlines this workflow through:
+- **Zero-Friction Ingestion**: Native text extraction for PDF, DOCX, TXT, plus OCR image parsing.
+- **Multi-Level Summarization**: Instant switching between Short (executive brief), Medium (core findings), and Long (comprehensive synthesis) summaries.
+- **Thematic Structuring**: Categorizing key takeaways, structured core arguments, and actionable suggestions.
 - **Document-Grounded Q&A**: Answering natural language queries using strictly the document's verified text, complete with quotation citations.
-- **In-Context Annotations**: Allowing personal reflections and excerpts to be recorded alongside the analysis.
-- **Seamless Portability**: Enabling one-click Markdown downloads, styled PDF/print exports, and secure, revocable web sharing.
+- **In-Context Annotations**: Personal reflections and excerpts recorded directly beside the analysis.
+- **Seamless Portability**: One-click Markdown downloads, styled PDF/print exports, and secure, revocable web sharing.
 
 ---
 
@@ -101,7 +103,7 @@ Express API Layer (Routes & Middleware)
 ### Document Processing Lifecycle
 
 ```
-[User Upload] (PDF / DOCX / TXT / PNG / JPG)
+[User Upload] (PDF / DOCX / TXT / PNG / JPG / WEBP)
       │
       ▼
 [Server Validation] (Size <= 25MB, MIME & Extension Checked)
@@ -148,7 +150,7 @@ Express API Layer (Routes & Middleware)
 
 ## Security & Data Privacy
 
-DocuMind AI adheres to security and data protection best practices:
+UNFOLD adheres to industry security and data protection best practices:
 
 - **HttpOnly JWT Session Storage**: Tokens are stored strictly in `HttpOnly`, `SameSite`-configured cookies to mitigate cross-site scripting (XSS) token theft.
 - **Strict Ownership Isolation**: Every document endpoint verifies `userId: new ObjectId(req.user.id)` ensuring users cannot view, edit, delete, or query other users' data.
@@ -166,6 +168,7 @@ DocuMind AI adheres to security and data protection best practices:
 ```
 DocuMind-AI/
 ├── .gitignore
+├── .env.example                   # Frontend environment template
 ├── components.json
 ├── index.html
 ├── package.json
@@ -186,7 +189,7 @@ DocuMind-AI/
 │   │   ├── use-mobile.tsx         # Mobile viewport detection hook
 │   │   └── use-toast.ts           # Toast notification hook
 │   ├── lib/
-│   │   ├── api-client.ts          # Typed API client & error handling
+│   │   ├── api-client.ts          # Typed API client with VITE_API_URL support
 │   │   ├── auth-context.tsx       # Global authentication state provider
 │   │   ├── export-utils.ts        # Markdown & PDF/print export utilities
 │   │   └── utils.ts               # Class merging utilities
@@ -195,10 +198,10 @@ DocuMind-AI/
 └── backend/
     ├── package.json
     ├── tsconfig.json
-    ├── .env.example
+    ├── .env.example               # Backend production environment template
     └── src/
         ├── server.ts              # HTTP server startup & graceful shutdown
-        ├── app.ts                 # Express application configuration & middleware
+        ├── app.ts                 # Express application configuration & dynamic CORS
         ├── config/
         │   └── env.ts             # Environment variable schema & validation
         ├── db/
@@ -229,7 +232,7 @@ DocuMind-AI/
             ├── auth.service.ts          # Password hashing, JWT signing, cookie helper
             ├── document.service.ts      # Document database queries & mutations
             ├── export.service.ts        # Server-side Markdown export builder
-            ├── extraction.service.ts    # File parsing (PDF, DOCX, TXT) & OCR
+            ├── extraction.service.ts    # File parsing (PDF, DOCX, TXT) & OCR (Tesseract)
             ├── extraction-runner.service.ts # Asynchronous pipeline orchestrator
             └── user.service.ts          # User persistence & preference management
 ```
@@ -238,21 +241,29 @@ DocuMind-AI/
 
 ## Environment Variables
 
-Configure the following variables in `backend/.env` (refer to `backend/.env.example`):
+### Backend Configuration (`backend/.env`)
+
+Configure the following variables on your backend hosting provider (e.g. Render / Railway):
 
 | Variable | Requirement | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `PORT` | Optional | `5000` | Port for the Express backend server |
-| `NODE_ENV` | Optional | `development` | Runtime environment (`development` \| `production`) |
-| `CLIENT_URL` | **Required** | `http://localhost:5173` | Frontend origin URL for CORS policy |
-| `MONGODB_URI` | **Required** | — | MongoDB Atlas / database connection URI |
+| `NODE_ENV` | **Required** in Prod | `development` | Set to `production` in production deployment |
+| `CLIENT_URL` | **Required** in Prod | `http://localhost:5173` | Allowed frontend origin URL(s) for CORS policy (comma-separated for multiple) |
+| `MONGODB_URI` | **Required** | — | MongoDB Atlas connection URI (`mongodb+srv://...`) |
 | `MONGODB_DB_NAME` | Optional | `UNFOLD` | Target database name within MongoDB |
-| `JWT_SECRET` | **Required** in Prod | *(dev fallback)* | Secret key used to sign and verify JWT tokens |
+| `JWT_SECRET` | **Required** in Prod | *(dev fallback)* | Secret key used to sign and verify JWT session cookies |
 | `JWT_EXPIRES_IN` | Optional | `7d` | JWT session token lifespan |
-| `COOKIE_SAMESITE` | Optional | `lax` (dev) / `none` (prod) | Cookie `SameSite` attribute (`lax` \| `none` \| `strict`) |
-| `COOKIE_SECURE` | Optional | `false` (dev) / `true` (prod) | Require HTTPS for session cookie transmission |
-| `GEMINI_API_KEY` | **Required** for AI | — | Google Gemini API key (Free Tier) |
+| `COOKIE_SAMESITE` | Optional | `none` (prod) / `lax` (dev) | Cookie `SameSite` attribute (`none` required for cross-domain HTTPS) |
+| `COOKIE_SECURE` | Optional | `true` (prod) / `false` (dev) | Require HTTPS for cookie transmission (`true` required for `sameSite=none`) |
+| `GEMINI_API_KEY` | **Required** for AI | — | Google Gemini API key (Free Tier from Google AI Studio) |
 | `GEMINI_MODEL` | Optional | `gemini-2.5-flash` | Gemini model identifier for analysis & Q&A |
+
+### Frontend Configuration (`.env`)
+
+| Variable | Requirement | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `VITE_API_URL` | **Required** in Prod | `""` (uses `/api` proxy) | Public URL of your deployed backend (e.g. `https://unfold-backend.onrender.com`) |
 
 ---
 
@@ -295,7 +306,7 @@ npm run dev
 
 ---
 
-## Verification
+## Verification & Testing
 
 The codebase includes strict TypeScript type checking and production build configurations across both client and server:
 
@@ -313,7 +324,57 @@ npm run typecheck    # Verifies backend TypeScript types with zero errors
 npm run build        # Compiles backend TypeScript to dist/
 ```
 
-> **Note on End-to-End Testing**: Full live document processing, Google Gemini AI synthesis, and Q&A interactions require active MongoDB and Gemini API credentials configured in your environment.
+---
+
+## Production Deployment
+
+### Step 1: MongoDB Atlas Setup
+1. Create a free M0 cluster on [MongoDB Atlas](https://www.mongodb.com/atlas).
+2. Create a database user with read/write access.
+3. In **Network Access**, add `0.0.0.0/0` (allow access from anywhere) so your cloud backend can connect.
+4. Copy your connection string (`mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority`).
+
+### Step 2: Google AI Studio Setup
+1. Visit [Google AI Studio](https://aistudio.google.com/) and generate a free API key.
+2. Note your key to supply as `GEMINI_API_KEY` in backend hosting environment variables.
+
+### Step 3: Backend Deployment (e.g., Render / Railway)
+1. Push your repository to GitHub.
+2. Create a new **Web Service** on [Render](https://render.com/) pointing to your repository.
+3. Configure settings:
+   - **Root Directory**: `backend`
+   - **Environment**: `Node`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+4. In **Environment Variables**, add:
+   ```ini
+   NODE_ENV=production
+   PORT=5000
+   CLIENT_URL=https://your-frontend.vercel.app
+   MONGODB_URI=mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+   MONGODB_DB_NAME=UNFOLD
+   JWT_SECRET=generate-a-secure-random-32-character-secret
+   JWT_EXPIRES_IN=7d
+   COOKIE_SAMESITE=none
+   COOKIE_SECURE=true
+   GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_MODEL=gemini-2.5-flash
+   ```
+5. Deploy the backend and copy its public URL (e.g. `https://unfold-backend.onrender.com`).
+
+### Step 4: Frontend Deployment (Vercel)
+1. Import your GitHub repository into [Vercel](https://vercel.com/).
+2. Configure settings:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: `./` (project root)
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+3. In **Environment Variables**, add:
+   ```ini
+   VITE_API_URL=https://unfold-backend.onrender.com
+   ```
+4. Deploy the frontend.
+5. In your backend settings on Render, make sure `CLIENT_URL` matches your deployed Vercel domain (`https://your-frontend.vercel.app`).
 
 ---
 

@@ -37,8 +37,8 @@ export async function runAiAnalysisPipeline(
 
 /**
  * Runs the complete document processing pipeline:
- *   1. Text extraction from physical storage file
- *   2. Structured AI analysis via Anthropic Claude
+ *   1. Text extraction from physical storage file (PDF, DOCX, TXT, or image OCR via Tesseract)
+ *   2. Structured AI analysis via Google Gemini 2.5 Flash
  *
  * Stage transitions:
  *   uploaded -> extracting -> analyzing -> ready
