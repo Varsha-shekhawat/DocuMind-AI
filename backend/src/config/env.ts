@@ -52,7 +52,7 @@ export const config: AppConfig = {
   cookieSecure: resolveCookieSecure(resolvedNodeEnv),
   cookieSameSite: resolveCookieSameSite(resolvedNodeEnv),
   geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
 };
 
 export interface ConfigValidationResult {

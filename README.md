@@ -41,7 +41,7 @@ UNFOLD streamlines this workflow through:
 - **Protected Document Library**: Private document workspace isolating each user's uploaded library with real-time status filtering and search.
 - **Native Document Extraction & OCR**: Real text parsing for PDF (`pdf-parse`), DOCX (`mammoth`), plain text (`.txt`), and image files (`.png`, `.jpg`, `.jpeg`, `.webp`) via local Optical Character Recognition (`tesseract.js`).
 - **Asynchronous Processing Pipeline**: Multi-stage processing lifecycle (`uploaded` &rarr; `extracting` &rarr; `analyzing` &rarr; `ready`) with live polling and visual progress indicators.
-- **AI-Powered Structured Analysis**: High-fidelity document synthesis generated via Google Gemini 2.5 Flash utilizing structured JSON schema output.
+- **AI-Powered Structured Analysis**: High-fidelity document synthesis generated via Google Gemini 3.6 Flash utilizing structured JSON schema output.
 - **Multi-Tier Summary Variants**: Instant switching between **Short** (executive brief), **Medium** (core premise and findings), and **Long** (comprehensive synthesis) summaries.
 - **Key Takeaways & Core Arguments**: Automatically extracted numbered bullet points and thematic arguments paired with conceptual titles and explanatory bodies.
 - **Actionable Insights & Suggestions**: Practical next steps, inquiry questions, and implications surfaced from the text.
@@ -71,7 +71,7 @@ UNFOLD streamlines this workflow through:
 - **Server Framework**: [Express 4](https://expressjs.com/)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **Database**: [MongoDB](https://www.mongodb.com/) (Native Node.js Driver `mongodb` v6)
-- **AI Engine**: [Google Gemini AI](https://ai.google.dev/) (`@google/generative-ai` with `gemini-2.5-flash`)
+- **AI Engine**: [Google Gemini AI](https://ai.google.dev/) (`@google/generative-ai` with `gemini-3.6-flash`)
 - **Authentication**: [JSON Web Tokens](https://github.com/auth0/node-jsonwebtoken) (`jsonwebtoken`), [Bcrypt.js](https://github.com/dcodeIO/bcrypt.js)
 - **File Ingestion**: [Multer](https://github.com/expressjs/multer)
 - **Text Extraction & OCR**: [pdf-parse](https://www.npmjs.com/package/pdf-parse), [mammoth](https://www.npmjs.com/package/mammoth), [tesseract.js](https://github.com/naptha/tesseract.js)
@@ -117,7 +117,7 @@ Express API Layer (Routes & Middleware)
       └── Success ─► (Extracted text saved, Stage: "extracting" ──► "analyzing")
             │
             ▼
-      [Google Gemini 2.5 Flash Analysis] (System Prompt + JSON Schema)
+      [Google Gemini 3.6 Flash Analysis] (System Prompt + JSON Schema)
             ├── Error ──► Status: "Needs attention", Stage: "failed"
             └── Success ─► Status: "Ready", Stage: "ready"
                   │
@@ -257,7 +257,7 @@ Configure the following variables on your backend hosting provider (e.g. Render 
 | `COOKIE_SAMESITE` | Optional | `none` (prod) / `lax` (dev) | Cookie `SameSite` attribute (`none` required for cross-domain HTTPS) |
 | `COOKIE_SECURE` | Optional | `true` (prod) / `false` (dev) | Require HTTPS for cookie transmission (`true` required for `sameSite=none`) |
 | `GEMINI_API_KEY` | **Required** for AI | — | Google Gemini API key (Free Tier from Google AI Studio) |
-| `GEMINI_MODEL` | Optional | `gemini-2.5-flash` | Gemini model identifier for analysis & Q&A |
+| `GEMINI_MODEL` | Optional | `gemini-3.6-flash` | Gemini model identifier for analysis & Q&A |
 
 ### Frontend Configuration (`.env`)
 
@@ -286,7 +286,7 @@ cd DocuMind-AI
 cd backend
 cp .env.example .env
 ```
-Supply your `MONGODB_URI` and `GEMINI_API_KEY` in `backend/.env`. (Default `GEMINI_MODEL=gemini-2.5-flash` is preconfigured).
+Supply your `MONGODB_URI` and `GEMINI_API_KEY` in `backend/.env`. (Default `GEMINI_MODEL=gemini-3.6-flash` is preconfigured).
 
 ### 3. Install Dependencies & Start Backend
 ```bash
@@ -358,7 +358,7 @@ npm run build        # Compiles backend TypeScript to dist/
    COOKIE_SAMESITE=none
    COOKIE_SECURE=true
    GEMINI_API_KEY=your_gemini_api_key_here
-   GEMINI_MODEL=gemini-2.5-flash
+   GEMINI_MODEL=gemini-3.6-flash
    ```
 5. Deploy the backend and copy its public URL (e.g. `https://unfold-backend.onrender.com`).
 

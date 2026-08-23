@@ -131,7 +131,7 @@ export interface AnswerQuestionInput {
 }
 
 /**
- * Answers a question strictly grounded in the provided document text using Google Gemini 2.5 Flash.
+ * Answers a question strictly grounded in the provided document text using Google Gemini 3.6 Flash.
  */
 export async function answerDocumentQuestion(input: AnswerQuestionInput): Promise<QaResult> {
   const trimmedText = (input.documentText || '').trim();
@@ -153,7 +153,7 @@ export async function answerDocumentQuestion(input: AnswerQuestionInput): Promis
   }
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
-  const modelName = config.geminiModel || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelName = config.geminiModel || process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
   const words = trimmedText.split(/\s+/).filter(Boolean);
   let contextText = trimmedText;
@@ -226,6 +226,11 @@ export async function answerDocumentQuestion(input: AnswerQuestionInput): Promis
 
     if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
       throw new AiQaError('Invalid Google Gemini API key. Please check your GEMINI_API_KEY setting.');
+    }
+    if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('is not supported') || errMsg.includes('no longer available')) {
+      throw new AiQaError(
+        `Configured Gemini model (${modelName}) is not available. Please verify GEMINI_MODEL (recommended: gemini-3.6-flash).`
+      );
     }
     if (errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED')) {
       throw new AiQaError('Google Gemini API rate limit reached. Please wait a moment before trying again.');

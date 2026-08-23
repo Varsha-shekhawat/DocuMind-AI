@@ -183,7 +183,7 @@ function parseAnalysisJson(rawJson: string): AnalysisResult {
 }
 
 /**
- * Executes structured AI document analysis on extracted text using Google Gemini 2.5 Flash.
+ * Executes structured AI document analysis on extracted text using Google Gemini 3.6 Flash.
  */
 export async function analyzeDocumentText(text: string): Promise<AnalysisResult> {
   const trimmed = (text || '').trim();
@@ -206,7 +206,7 @@ export async function analyzeDocumentText(text: string): Promise<AnalysisResult>
   }
 
   const genAI = new GoogleGenerativeAI(apiKey.trim());
-  const modelName = config.geminiModel || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelName = config.geminiModel || process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
   try {
     let contentToAnalyze = trimmed;
@@ -262,6 +262,11 @@ export async function analyzeDocumentText(text: string): Promise<AnalysisResult>
 
     if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
       throw new AiAnalysisError('Invalid Google Gemini API key. Please check your GEMINI_API_KEY configuration.');
+    }
+    if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('is not supported') || errMsg.includes('no longer available')) {
+      throw new AiAnalysisError(
+        `Configured Gemini model (${modelName}) is not available. Please verify GEMINI_MODEL (recommended: gemini-3.6-flash).`
+      );
     }
     if (errMsg.includes('429') || errMsg.includes('Quota exceeded') || errMsg.includes('RESOURCE_EXHAUSTED')) {
       throw new AiAnalysisError('Google Gemini API rate limit reached. Please wait a moment and try again.');
