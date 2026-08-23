@@ -11,5 +11,10 @@ export function getHealth(_req: Request, res: Response): void {
     database: {
       status: isDbConnected() ? 'connected' : 'disconnected',
     },
+    ai: {
+      provider: 'Google Gemini',
+      model: config.geminiModel,
+      configured: Boolean(config.geminiApiKey),
+    },
   });
 }

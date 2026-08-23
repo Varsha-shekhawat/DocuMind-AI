@@ -32,6 +32,7 @@ async function startServer(): Promise<void> {
     console.log(`  UNFOLD Backend API running on port ${config.port}`);
     console.log(`  Health endpoint: http://localhost:${config.port}/api/health`);
     console.log(`  Environment:     ${config.nodeEnv}`);
+    console.log(`  AI Model:        ${config.geminiModel} (Key set: ${Boolean(config.geminiApiKey)})`);
     console.log(`========================================`);
   });
 
