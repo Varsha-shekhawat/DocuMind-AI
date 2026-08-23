@@ -43,3 +43,6 @@ backend/dist/
 
 # Patch files
 *.patch
+
+# Local Tesseract OCR language data
+backend/eng.traineddata
