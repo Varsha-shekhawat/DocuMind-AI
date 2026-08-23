@@ -614,7 +614,57 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  return <div className="flex min-h-[100dvh] bg-paper"><Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} /><div className="min-w-0 flex-1"><header className="flex h-[76px] items-center justify-between border-b border-ink/15 bg-paper/80 px-5 backdrop-blur-sm md:px-9"><div className="flex items-center gap-3"><button type="button" onClick={() => setMobileOpen(true)} className="grid h-9 w-9 place-items-center rounded-md border border-ink/15 md:hidden" aria-label="Open menu" data-testid="button-open-app-menu"><Menu size={17} /></button><button type="button" onClick={() => setCollapsed(!collapsed)} className="hidden h-9 w-9 place-items-center rounded-md border border-ink/15 text-ink/60 hover:bg-ink/5 md:grid" aria-label="Toggle sidebar" data-testid="button-toggle-sidebar">{collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}</button><span className="font-mono-ui text-[10px] uppercase tracking-[.15em] text-ink/40">Your library of knowledge</span></div><div className="flex items-center gap-2"><Link href="/documents/new" className={`${buttonBase} bg-forest px-3.5 py-2.5 text-[11px] text-paper hover:bg-forest/90`} data-testid="button-header-new-document"><Plus size={14} /> <span className="hidden sm:inline">New document</span></Link><Link href="/settings" className="grid h-9 w-9 place-items-center rounded-md text-ink/55 hover:bg-ink/5" aria-label="Settings" data-testid="link-header-settings"><Settings size={17} /></Link></div></header><div className="p-5 md:p-9">{children}</div></div>{mobileOpen && <MobileNav onClose={() => setMobileOpen(false)} />}</div>;
+  return (
+    <div className="flex min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-paper">
+      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      <div className="flex min-w-0 flex-1 flex-col w-full max-w-full overflow-x-hidden">
+        <header className="flex h-[76px] w-full items-center justify-between border-b border-ink/15 bg-paper/80 px-4 sm:px-5 backdrop-blur-sm md:px-9">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-ink/15 md:hidden"
+              aria-label="Open menu"
+              data-testid="button-open-app-menu"
+            >
+              <Menu size={17} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCollapsed(!collapsed)}
+              className="hidden h-9 w-9 shrink-0 place-items-center rounded-md border border-ink/15 text-ink/60 hover:bg-ink/5 md:grid"
+              aria-label="Toggle sidebar"
+              data-testid="button-toggle-sidebar"
+            >
+              {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            </button>
+            <span className="hidden sm:inline truncate font-mono-ui text-[10px] uppercase tracking-[.15em] text-ink/40">
+              Your library of knowledge
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/documents/new"
+              className={`${buttonBase} bg-forest px-3 sm:px-3.5 py-2.5 text-[11px] text-paper hover:bg-forest/90`}
+              data-testid="button-header-new-document"
+            >
+              <Plus size={14} /> <span className="hidden sm:inline">New document</span>
+            </Link>
+            <Link
+              href="/settings"
+              className="grid h-9 w-9 place-items-center rounded-md text-ink/55 hover:bg-ink/5"
+              aria-label="Settings"
+              data-testid="link-header-settings"
+            >
+              <Settings size={17} />
+            </Link>
+          </div>
+        </header>
+        <div className="flex-1 min-w-0 w-full max-w-full p-4 sm:p-5 md:p-9">{children}</div>
+      </div>
+      {mobileOpen && <MobileNav onClose={() => setMobileOpen(false)} />}
+    </div>
+  );
 }
 
 function PageIntro({ eyebrow, title, children }: { eyebrow: string; title: string; children?: ReactNode }) {
@@ -1079,16 +1129,16 @@ export function DocumentPreview({
 
   return (
     <section
-      className={`paper-texture relative overflow-hidden border border-ink/15 bg-card transition-all duration-300 ${
-        collapsed ? 'h-[72px]' : 'min-h-[620px]'
+      className={`paper-texture relative w-full min-w-0 overflow-hidden border border-ink/15 bg-card transition-all duration-300 ${
+        collapsed ? 'h-[64px] sm:h-[72px]' : 'min-h-[480px] sm:min-h-[620px]'
       }`}
     >
-      <div className="flex items-center justify-between border-b border-ink/15 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <FileText size={15} className="text-terracotta" />
+      <div className="flex items-center justify-between border-b border-ink/15 px-3 sm:px-4 py-2.5 sm:py-3">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+          <FileText size={15} className="text-terracotta shrink-0" />
           <p className="truncate text-xs font-semibold">{document.name}</p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <span className="hidden font-mono-ui text-[9px] text-ink/40 sm:inline">
             1 / {document.pages || 1}
           </span>
@@ -1104,21 +1154,21 @@ export function DocumentPreview({
         </div>
       </div>
       {!collapsed && (
-        <div className="flex justify-center p-8">
-          <div className="relative min-h-[500px] w-full max-w-[380px] rotate-[-1deg] bg-[#fcf7ed] p-8 paper-shadow">
-            <div className="mb-6 border-b border-ink/15 pb-3">
-              <p className="font-display text-xl">{document.name.replace(/\.[^/.]+$/, '')}</p>
+        <div className="flex justify-center p-4 sm:p-8 w-full">
+          <div className="relative min-h-[420px] sm:min-h-[500px] w-full max-w-[420px] rotate-[-0.5deg] sm:rotate-[-1deg] bg-[#fcf7ed] p-5 sm:p-8 paper-shadow">
+            <div className="mb-4 sm:mb-6 border-b border-ink/15 pb-3">
+              <p className="font-display text-lg sm:text-xl break-words [overflow-wrap:anywhere]">{document.name.replace(/\.[^/.]+$/, '')}</p>
               <p className="mt-1 font-mono-ui text-[8px] uppercase tracking-[.14em] text-ink/45">
                 Stored Document
               </p>
             </div>
             <p className="font-display text-[11px] italic">Document Overview</p>
-            <div className="doc-lines mt-3 h-[95px] text-[8px] leading-[18px] text-ink/55">
+            <div className="doc-lines mt-3 h-[95px] text-[8px] leading-[18px] text-ink/55 overflow-hidden">
               {document.description || 'Document stored securely in your UNFOLD library.'}
             </div>
-            <div className="mt-7 border-t border-ink/15 pt-4">
+            <div className="mt-5 sm:mt-7 border-t border-ink/15 pt-4">
               <p className="font-display text-[11px]">Reading Status</p>
-              <div className="doc-lines mt-3 h-[185px] text-[8px] leading-[18px] text-ink/55">
+              <div className="doc-lines mt-3 h-[140px] sm:h-[185px] text-[8px] leading-[18px] text-ink/55 overflow-hidden">
                 Status: {document.status}. File size: {fileSizeText}.{' '}
                 {document.status === 'Ready'
                   ? 'Analysis and structured insights generated.'
@@ -1127,7 +1177,7 @@ export function DocumentPreview({
             </div>
             <span className="absolute left-[15%] top-[31%] h-4 w-[65%] bg-ochre/50" />
             <span className="absolute left-[15%] top-[55%] h-4 w-[52%] bg-ochre/50" />
-            <span className="absolute bottom-7 right-8 font-mono-ui text-[8px] text-ink/35">01</span>
+            <span className="absolute bottom-5 sm:bottom-7 right-6 sm:right-8 font-mono-ui text-[8px] text-ink/35">01</span>
           </div>
         </div>
       )}
@@ -1165,15 +1215,15 @@ export function SummaryLengthControl({
 
 export function SummaryTabs({ active, onChange }: { active: string; onChange: (value: string) => void }) {
   return (
-    <div className="flex min-w-max gap-6 border-b border-ink/15 px-1" role="tablist">
+    <div className="flex min-w-max gap-4 sm:gap-6 border-b border-ink/15 px-1" role="tablist">
       {['Summary', 'Key Points', 'Main Ideas', 'Suggestions', 'Ask Document', 'Notes'].map((item) => (
         <button
           type="button"
           key={item}
           onClick={() => onChange(item)}
-          className={`relative pb-3 font-mono-ui text-[10px] uppercase tracking-[.06em] ${
+          className={`relative pb-3 font-mono-ui text-[10px] uppercase tracking-[.06em] whitespace-nowrap cursor-pointer ${
             active === item
-              ? 'text-terracotta after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-terracotta'
+              ? 'text-terracotta font-semibold after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-terracotta'
               : 'text-ink/45 hover:text-ink'
           }`}
           role="tab"
@@ -1197,18 +1247,18 @@ export function KeyPoints({
   return (
     <div className="space-y-0">
       {points.map((point, index) => (
-        <div key={point} className="flex items-start justify-between gap-4 border-b border-ink/10 py-4 group">
-          <div className="flex gap-4">
-            <span className="font-mono-ui text-[10px] text-terracotta">
+        <div key={point} className="flex items-start justify-between gap-3 sm:gap-4 border-b border-ink/10 py-3.5 sm:py-4 group">
+          <div className="flex gap-3 sm:gap-4 min-w-0 flex-1">
+            <span className="font-mono-ui text-[10px] text-terracotta shrink-0 pt-0.5">
               {String(index + 1).padStart(2, '0')}
             </span>
-            <p className="text-sm leading-6 text-ink/75">{point}</p>
+            <p className="text-sm leading-6 text-ink/75 break-words [overflow-wrap:anywhere]">{point}</p>
           </div>
           {onSaveAsNote && (
             <button
               type="button"
               onClick={() => onSaveAsNote(point)}
-              className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 flex items-center gap-1 text-[10px] text-ink/45 hover:text-terracotta font-mono-ui uppercase tracking-wider"
+              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0 flex items-center gap-1 text-[10px] text-ink/45 hover:text-terracotta font-mono-ui uppercase tracking-wider pt-0.5"
               title="Save as note"
               data-testid={`button-save-keypoint-note-${index}`}
             >
@@ -1231,17 +1281,17 @@ export function MainIdeas({
   return (
     <div className="space-y-5">
       {ideas.map((idea, index) => (
-        <div key={idea.title} className="border-l-2 border-ochre pl-4 group relative">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-mono-ui text-[9px] text-terracotta">0{index + 1}</span>
-              <h3 className="font-display text-xl">{idea.title}</h3>
+        <div key={idea.title} className="border-l-2 border-ochre pl-3 sm:pl-4 group relative">
+          <div className="flex items-start sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+              <span className="font-mono-ui text-[9px] text-terracotta shrink-0">0{index + 1}</span>
+              <h3 className="font-display text-lg sm:text-xl break-words [overflow-wrap:anywhere]">{idea.title}</h3>
             </div>
             {onSaveAsNote && (
               <button
                 type="button"
                 onClick={() => onSaveAsNote(idea.title, idea.body)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-ink/45 hover:text-terracotta font-mono-ui uppercase tracking-wider"
+                className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0 flex items-center gap-1 text-[10px] text-ink/45 hover:text-terracotta font-mono-ui uppercase tracking-wider"
                 title="Save as note"
                 data-testid={`button-save-mainidea-note-${index}`}
               >
@@ -1249,7 +1299,7 @@ export function MainIdeas({
               </button>
             )}
           </div>
-          <p className="mt-2 text-sm leading-6 text-ink/60">{idea.body}</p>
+          <p className="mt-2 text-sm leading-6 text-ink/60 break-words [overflow-wrap:anywhere]">{idea.body}</p>
         </div>
       ))}
     </div>
@@ -1945,17 +1995,19 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
   const hasSuggestions = document.suggestions && document.suggestions.length > 0;
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(300px,.8fr)_minmax(500px,1.2fr)]">
+    <div className="grid w-full max-w-full gap-6 xl:grid-cols-[minmax(300px,.8fr)_minmax(500px,1.2fr)]">
       <DocumentPreview document={document} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
-      <section className="min-w-0 border border-ink/15 bg-card p-5 md:p-8">
-        <div className="mb-7 flex items-start justify-between gap-4">
-          <div>
+      <section className="w-full min-w-0 border border-ink/15 bg-card p-4 sm:p-5 md:p-8">
+        <div className="mb-6 sm:mb-7 flex flex-wrap sm:flex-nowrap items-start justify-between gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
             <p className="font-mono-ui text-[9px] uppercase tracking-[.15em] text-terracotta">
               Understanding
             </p>
-            <h2 className="mt-2 font-display text-3xl">{document.name.replace(/\.[^/.]+$/, '')}</h2>
+            <h2 className="mt-2 font-display text-2xl sm:text-3xl break-words [overflow-wrap:anywhere]">
+              {document.name.replace(/\.[^/.]+$/, '')}
+            </h2>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5 self-start pt-1">
             <button
               type="button"
               onClick={copySummary}
@@ -2032,7 +2084,7 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
               </button>
               {shareOpen && (
                 <div
-                  className="absolute right-0 z-30 mt-2 w-80 sm:w-96 rounded-md border border-ink/15 bg-card p-4 shadow-xl text-left"
+                  className="absolute right-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-sm sm:w-96 rounded-md border border-ink/15 bg-card p-4 shadow-xl text-left"
                   data-testid="share-modal"
                 >
                   <div className="flex items-center justify-between border-b border-ink/10 pb-3">
@@ -2140,19 +2192,19 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto pb-1">
           <SummaryTabs active={active} onChange={setActive} />
         </div>
-        <div className="pt-7">
+        <div className="pt-6 sm:pt-7">
           {active === 'Summary' && (
             <div>
-              <div className="mb-7 flex items-center justify-between gap-4">
+              <div className="mb-6 sm:mb-7 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
                 <p className="font-display text-xl">Summary</p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="hidden font-mono-ui text-[9px] uppercase text-ink/40 sm:inline">
                     Summary length
                   </span>
-                  <div className="w-[180px]">
+                  <div className="w-[160px] sm:w-[180px]">
                     <SummaryLengthControl
                       value={length}
                       onChange={(val) => setLength(val as 'Short' | 'Medium' | 'Long')}
@@ -2161,26 +2213,26 @@ export function ResultsWorkspace({ document }: { document: ApiDocument | Documen
                 </div>
               </div>
               {hasSummary ? (
-                <div className="max-w-[660px] whitespace-pre-line text-[15px] leading-8 text-ink/70">
+                <div className="w-full max-w-[660px] whitespace-pre-line text-sm sm:text-[15px] leading-7 sm:leading-8 text-ink/70 break-words [overflow-wrap:anywhere]">
                   {currentSummaryText}
                 </div>
               ) : (
-                <div className="rounded border border-dashed border-ink/20 bg-paper/60 p-6 text-sm leading-6 text-ink/60">
+                <div className="rounded border border-dashed border-ink/20 bg-paper/60 p-5 sm:p-6 text-sm leading-6 text-ink/60">
                   <p className="font-semibold text-ink">Document stored in your UNFOLD library.</p>
                   <p className="mt-1">
                     Summary extraction is being generated in your reading room.
                   </p>
                 </div>
               )}
-              <div className="mt-10 grid gap-3 border-t border-ink/10 pt-6 sm:grid-cols-3">
+              <div className="mt-8 sm:mt-10 grid grid-cols-2 gap-3 border-t border-ink/10 pt-6 sm:grid-cols-3">
                 {[
                   [String(document.pages || 1), 'pages stored'],
                   [String(document.words || '—'), 'words indexed'],
                   [document.status, 'status'],
                 ].map(([number, label]) => (
-                  <div key={label}>
-                    <p className="font-display text-2xl">{number}</p>
-                    <p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.1em] text-ink/45">
+                  <div key={label} className="min-w-0">
+                    <p className="font-display text-xl sm:text-2xl truncate">{number}</p>
+                    <p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[.1em] text-ink/45 truncate">
                       {label}
                     </p>
                   </div>
@@ -2355,20 +2407,20 @@ export function SharedDocumentPage({ token }: { token?: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-paper flex flex-col">
+    <div className="min-h-screen bg-paper flex flex-col w-full max-w-full overflow-x-hidden">
       {/* Public Header */}
-      <header className="border-b border-ink/15 bg-paper/80 backdrop-blur px-6 py-4">
+      <header className="border-b border-ink/15 bg-paper/80 backdrop-blur px-4 sm:px-6 py-3.5 sm:py-4">
         <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Logo />
             <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-forest/20 bg-forest/5 px-2.5 py-0.5 font-mono-ui text-[9px] uppercase tracking-widest text-forest">
               <Globe size={10} /> Shared Read-Only Document
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/register"
-              className={`${buttonBase} bg-forest px-3.5 py-2 text-xs text-paper hover:bg-forest/90`}
+              className={`${buttonBase} bg-forest px-3 sm:px-3.5 py-2 text-xs text-paper hover:bg-forest/90`}
             >
               Create your reading room
             </Link>
@@ -2383,18 +2435,18 @@ export function SharedDocumentPage({ token }: { token?: string }) {
       </header>
 
       {/* Main Shared Content */}
-      <main className="flex-1 px-4 py-8 sm:px-8">
-        <div className="mx-auto max-w-[900px] space-y-6">
-          <div className="border border-ink/15 bg-card p-6 sm:p-10 shadow-sm">
-            <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-ink/10 pb-6">
-              <div>
+      <main className="flex-1 px-3 py-6 sm:px-8 w-full max-w-full">
+        <div className="mx-auto max-w-[900px] w-full space-y-6">
+          <div className="border border-ink/15 bg-card p-4 sm:p-10 shadow-sm w-full">
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-3 sm:gap-4 border-b border-ink/10 pb-6">
+              <div className="min-w-0 flex-1">
                 <span className="font-mono-ui text-[9px] uppercase tracking-[.15em] text-terracotta">
                   UNFOLD Document Synthesis
                 </span>
-                <h1 className="mt-2 font-display text-3xl sm:text-4xl text-ink">
+                <h1 className="mt-2 font-display text-2xl sm:text-4xl text-ink break-words [overflow-wrap:anywhere]">
                   {document.title}
                 </h1>
-                <div className="mt-3 flex flex-wrap items-center gap-3 font-mono-ui text-[10px] text-ink/45">
+                <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3 font-mono-ui text-[10px] text-ink/45">
                   <span>{document.pages} {document.pages === 1 ? 'Page' : 'Pages'}</span>
                   <span>·</span>
                   <span>{document.words} Words</span>
@@ -2404,7 +2456,7 @@ export function SharedDocumentPage({ token }: { token?: string }) {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1.5 self-start pt-1">
                 <button
                   type="button"
                   onClick={copySummary}
@@ -2459,36 +2511,38 @@ export function SharedDocumentPage({ token }: { token?: string }) {
             </div>
 
             {/* Tabs for Public Synthesis */}
-            <div className="flex min-w-max gap-6 border-b border-ink/15 px-1" role="tablist">
-              {['Summary', 'Key Points', 'Main Ideas', 'Suggestions'].map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  onClick={() => setActive(item)}
-                  className={`relative pb-3 font-mono-ui text-[10px] uppercase tracking-[.06em] ${
-                    active === item
-                      ? 'text-terracotta after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-terracotta'
-                      : 'text-ink/45 hover:text-ink'
-                  }`}
-                  role="tab"
-                  aria-selected={active === item}
-                >
-                  {item}
-                </button>
-              ))}
+            <div className="overflow-x-auto pb-1">
+              <div className="flex min-w-max gap-4 sm:gap-6 border-b border-ink/15 px-1" role="tablist">
+                {['Summary', 'Key Points', 'Main Ideas', 'Suggestions'].map((item) => (
+                  <button
+                    type="button"
+                    key={item}
+                    onClick={() => setActive(item)}
+                    className={`relative pb-3 font-mono-ui text-[10px] uppercase tracking-[.06em] whitespace-nowrap cursor-pointer ${
+                      active === item
+                        ? 'text-terracotta font-semibold after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-terracotta'
+                        : 'text-ink/45 hover:text-ink'
+                    }`}
+                    role="tab"
+                    aria-selected={active === item}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Content per tab */}
-            <div className="pt-7">
+            <div className="pt-6 sm:pt-7">
               {active === 'Summary' && (
                 <div>
-                  <div className="mb-7 flex items-center justify-between gap-4">
+                  <div className="mb-6 sm:mb-7 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3">
                     <p className="font-display text-xl">Summary</p>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <span className="hidden font-mono-ui text-[9px] uppercase text-ink/40 sm:inline">
                         Length
                       </span>
-                      <div className="w-[180px]">
+                      <div className="w-[160px] sm:w-[180px]">
                         <SummaryLengthControl
                           value={length}
                           onChange={(val) => setLength(val as 'Short' | 'Medium' | 'Long')}
@@ -2496,7 +2550,7 @@ export function SharedDocumentPage({ token }: { token?: string }) {
                       </div>
                     </div>
                   </div>
-                  <div className="whitespace-pre-line text-[15px] leading-8 text-ink/75">
+                  <div className="w-full whitespace-pre-line text-sm sm:text-[15px] leading-7 sm:leading-8 text-ink/75 break-words [overflow-wrap:anywhere]">
                     {currentSummaryText || 'No summary available.'}
                   </div>
                 </div>

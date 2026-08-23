@@ -115,11 +115,13 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
   * { @apply border-border; }
   body {
     @apply font-sans antialiased bg-background text-foreground;
     min-width: 320px;
+    overflow-x: hidden;
   }
   button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
   ::selection { background: hsl(var(--accent) / .25); }
