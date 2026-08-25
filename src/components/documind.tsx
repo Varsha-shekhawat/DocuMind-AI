@@ -398,7 +398,7 @@ export function LandingPage() {
       <footer className="border-t border-ink/15 px-5 py-8 md:px-10">
         <div className="mx-auto flex max-w-[1320px] flex-col gap-6 text-xs text-ink/50 md:flex-row md:items-center md:justify-between">
           <Logo />
-          <span>© 2024 UNFOLD. A quieter way to understand.</span>
+          <span>© 2026 UNFOLD. A quieter way to understand.</span>
           <div className="flex flex-wrap items-center gap-5">
             <a href="/#how-it-works" onClick={(e) => scrollToAnchor(e, 'how-it-works')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-how-it-works">How It Works</a>
             <a href="/#features" onClick={(e) => scrollToAnchor(e, 'features')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-features">Features</a>
@@ -557,7 +557,7 @@ export function HowItWorksPage() {
       <footer className="border-t border-ink/15 px-5 py-8 md:px-10">
         <div className="mx-auto flex max-w-[1320px] flex-col gap-6 text-xs text-ink/50 md:flex-row md:items-center md:justify-between">
           <Logo />
-          <span>© 2024 UNFOLD. A quieter way to understand.</span>
+          <span>© 2026 UNFOLD. A quieter way to understand.</span>
           <div className="flex flex-wrap items-center gap-5">
             <a href="/#how-it-works" onClick={(e) => scrollToAnchor(e, 'how-it-works')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-how-it-works">How It Works</a>
             <a href="/#features" onClick={(e) => scrollToAnchor(e, 'features')} className="cursor-pointer hover:text-terracotta" data-testid="link-footer-features">Features</a>
